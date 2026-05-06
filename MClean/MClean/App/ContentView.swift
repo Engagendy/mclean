@@ -29,6 +29,10 @@ struct ContentView: View {
                 MoveToTrashPreviewView(isPresented: $showingDeleteAlert)
                     .environmentObject(manager)
             }
+            .sheet(item: $manager.detailItem) { item in
+                FileDetailsView(item: item)
+                    .environmentObject(manager)
+            }
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 980, minHeight: 640)

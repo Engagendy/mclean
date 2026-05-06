@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 struct ScanOptions: Equatable {
@@ -5,8 +6,10 @@ struct ScanOptions: Equatable {
     var includeDownloads = true
     var includeTemporary = true
     var includeLargeFiles = true
+    var includeDuplicates = true
     var includeOldFiles = true
     var includeDeveloperData = true
+    var includeAppLeftovers = true
     var includeAppSupport = false
     var includeSystemStorage = false
     var largeFileThresholdMB = 500
@@ -127,6 +130,37 @@ actor FileScanner {
             )
         }
 
+        if options.includeDuplicates {
+            if Task.isCancelled { return ScanResult(items: items, summary: summary) }
+            await progress("Grouping duplicate files")
+            await collectDuplicateFileCandidates(
+                roots: [
+                    home.appendingPathComponent("Downloads"),
+                    home.appendingPathComponent("Documents"),
+                    home.appendingPathComponent("Desktop")
+                ],
+                minSize: 10 * 1_024 * 1_024,
+                items: &items,
+                seenPaths: &seenPaths,
+                summary: &summary,
+                onItem: onItem,
+                onSummary: onSummary
+            )
+        }
+
+        if options.includeAppLeftovers {
+            if Task.isCancelled { return ScanResult(items: items, summary: summary) }
+            await progress("Detecting app leftovers")
+            await collectAppLeftoverCandidates(
+                home: home,
+                items: &items,
+                seenPaths: &seenPaths,
+                summary: &summary,
+                onItem: onItem,
+                onSummary: onSummary
+            )
+        }
+
         if options.includeAppSupport {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
             await progress("Scanning app support data")
@@ -183,13 +217,14 @@ actor FileScanner {
 
         let sorted = items
             .sorted {
+                if $0.protection.sortRank != $1.protection.sortRank { return $0.protection.sortRank < $1.protection.sortRank }
                 if $0.risk.sortRank != $1.risk.sortRank { return $0.risk.sortRank < $1.risk.sortRank }
                 return $0.size > $1.size
             }
             .prefix(options.maxResults)
 
         let finalItems = Array(sorted)
-        summary.reclaimableBytes = finalItems.reduce(0) { $0 + $1.size }
+        summary.reclaimableBytes = finalItems.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
         await onSummary(summary)
         return ScanResult(items: finalItems, summary: summary)
     }
@@ -232,7 +267,8 @@ actor FileScanner {
                     category: category,
                     risk: risk,
                     reason: reason,
-                    isDirectory: values?.isDirectory ?? true
+                    isDirectory: values?.isDirectory ?? true,
+                    protection: protection(for: child, category: category, risk: risk)
                 )
                 items.append(item)
                 await onItem(item)
@@ -275,7 +311,8 @@ actor FileScanner {
                 category: category,
                 risk: risk,
                 reason: reason,
-                isDirectory: true
+                isDirectory: true,
+                protection: protection(for: root, category: category, risk: risk)
             )
             items.append(item)
             await onItem(item)
@@ -347,7 +384,138 @@ actor FileScanner {
                     category: category,
                     risk: risk,
                     reason: reason,
-                    isDirectory: false
+                    isDirectory: false,
+                    protection: protection(for: url, category: category, risk: risk)
+                )
+                items.append(item)
+                await onItem(item)
+                await onSummary(summary)
+            }
+        }
+    }
+
+    private func collectDuplicateFileCandidates(
+        roots: [URL],
+        minSize: Int64,
+        items: inout [CleanupItem],
+        seenPaths: inout Set<String>,
+        summary: inout ScanSummary,
+        onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
+        onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
+    ) async {
+        let keys: [URLResourceKey] = [.isRegularFileKey, .fileAllocatedSizeKey, .totalFileAllocatedSizeKey, .contentModificationDateKey]
+        var filesBySize: [Int64: [URL]] = [:]
+
+        for root in roots where fileManager.fileExists(atPath: root.path) {
+            guard let enumerator = fileManager.enumerator(
+                at: root,
+                includingPropertiesForKeys: keys,
+                options: [.skipsHiddenFiles, .skipsPackageDescendants],
+                errorHandler: { _, _ in true }
+            ) else {
+                summary.skippedItems += 1
+                continue
+            }
+
+            while let url = enumerator.nextObject() as? URL {
+                if Task.isCancelled { return }
+                guard !isProtectedPath(url), !isSystemCritical(url) else { continue }
+                guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else {
+                    summary.skippedItems += 1
+                    continue
+                }
+                summary.scannedFiles += 1
+                let size = Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
+                guard size >= minSize else { continue }
+                filesBySize[size, default: []].append(url)
+            }
+        }
+
+        for (size, urls) in filesBySize where urls.count > 1 {
+            if Task.isCancelled { return }
+            var filesByHash: [String: [URL]] = [:]
+            for url in urls {
+                if Task.isCancelled { return }
+                guard let hash = sha256(for: url) else {
+                    summary.skippedItems += 1
+                    continue
+                }
+                filesByHash[hash, default: []].append(url)
+            }
+
+            for (hash, matches) in filesByHash where matches.count > 1 {
+                let groupID = "\(size)-\(hash.prefix(12))"
+                for url in matches.sorted(by: { $0.path < $1.path }) {
+                    guard seenPaths.insert(url.path).inserted else { continue }
+                    let values = try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                    let item = CleanupItem(
+                        url: url,
+                        name: url.lastPathComponent,
+                        size: size,
+                        modifiedAt: values?.contentModificationDate,
+                        category: .duplicates,
+                        risk: .medium,
+                        reason: "Duplicate file group with \(matches.count) matches",
+                        isDirectory: false,
+                        protection: protection(for: url, category: .duplicates, risk: .medium),
+                        duplicateGroupID: groupID,
+                        duplicateCount: matches.count
+                    )
+                    items.append(item)
+                    await onItem(item)
+                    await onSummary(summary)
+                }
+            }
+        }
+    }
+
+    private func collectAppLeftoverCandidates(
+        home: URL,
+        items: inout [CleanupItem],
+        seenPaths: inout Set<String>,
+        summary: inout ScanSummary,
+        onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
+        onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
+    ) async {
+        let installedBundleIDs = installedApplicationBundleIDs(home: home)
+        let roots = [
+            home.appendingPathComponent("Library/Caches"),
+            home.appendingPathComponent("Library/Application Support"),
+            home.appendingPathComponent("Library/Containers"),
+            home.appendingPathComponent("Library/HTTPStorages"),
+            home.appendingPathComponent("Library/WebKit")
+        ]
+
+        for root in roots where fileManager.fileExists(atPath: root.path) {
+            if Task.isCancelled { return }
+            guard let children = try? fileManager.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                summary.skippedItems += 1
+                continue
+            }
+
+            for child in children {
+                if Task.isCancelled { return }
+                guard let bundleID = probableBundleID(from: child), !installedBundleIDs.contains(bundleID) else { continue }
+                guard !isProtectedPath(child), seenPaths.insert(child.path).inserted else { continue }
+                let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
+                let isDirectory = values?.isDirectory ?? true
+                let size = isDirectory ? directorySize(child, maxDepth: 3, summary: &summary) : fileSize(child)
+                guard size >= 1_024 * 1_024 else { continue }
+                let item = CleanupItem(
+                    url: child,
+                    name: child.lastPathComponent,
+                    size: size,
+                    modifiedAt: values?.contentModificationDate,
+                    category: .appLeftovers,
+                    risk: .medium,
+                    reason: "Possible leftover data for uninstalled app \(bundleID)",
+                    isDirectory: isDirectory,
+                    protection: .reviewOnly,
+                    relatedBundleID: bundleID
                 )
                 items.append(item)
                 await onItem(item)
@@ -366,6 +534,7 @@ actor FileScanner {
 
         var total: Int64 = 0
         for child in children where !isSystemCritical(child) {
+            if Task.isCancelled { return total }
             guard let values = try? child.resourceValues(forKeys: Set(keys)) else {
                 summary.skippedItems += 1
                 continue
@@ -378,6 +547,13 @@ actor FileScanner {
             }
         }
         return total
+    }
+
+    private func fileSize(_ url: URL) -> Int64 {
+        guard let values = try? url.resourceValues(forKeys: [.fileAllocatedSizeKey, .totalFileAllocatedSizeKey]) else {
+            return 0
+        }
+        return Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
     }
 
     private func isExcludedFromDeepScan(_ url: URL) -> Bool {
@@ -406,23 +582,140 @@ actor FileScanner {
             path.contains("/.git/")
     }
 
+    private func isProtectedPath(_ url: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        let home = fileManager.homeDirectoryForCurrentUser.standardizedFileURL.path
+        let protectedExact = [
+            home,
+            "\(home)/Desktop",
+            "\(home)/Documents",
+            "\(home)/Downloads",
+            "\(home)/Library",
+            "\(home)/Library/Application Support",
+            "\(home)/Library/Containers",
+            "\(home)/Library/Group Containers",
+            "\(home)/Pictures",
+            "\(home)/Movies",
+            "\(home)/Music",
+            "\(home)/Library/Mail",
+            "\(home)/Library/Messages",
+            "\(home)/Library/Photos",
+            "\(home)/Library/CloudStorage"
+        ]
+        let protectedPrefixes = [
+            "\(home)/Library/Application Support/MobileSync",
+            "\(home)/Pictures/Photos Library.photoslibrary",
+            "\(home)/Library/Keychains",
+            "\(home)/Library/Accounts",
+            "\(home)/Library/Calendars",
+            "\(home)/Library/AddressBook"
+        ]
+
+        return protectedExact.contains(path) || protectedPrefixes.contains { path.hasPrefix($0) }
+    }
+
+    private func protection(for url: URL, category: CleanupCategory, risk: CleanupRisk) -> CleanupProtection {
+        if isProtectedPath(url) || isSystemCritical(url) {
+            return .neverDelete
+        }
+
+        switch category {
+        case .systemStorage:
+            return .neverDelete
+        case .appSupport, .oldFiles:
+            return .reviewOnly
+        case .downloads where risk == .medium:
+            return .reviewOnly
+        case .duplicates, .appLeftovers:
+            return .reviewOnly
+        default:
+            return .normal
+        }
+    }
+
+    private func sha256(for url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+
+        var hasher = SHA256()
+        while true {
+            if Task.isCancelled { return nil }
+            let data = handle.readData(ofLength: 1_024 * 1_024)
+            if data.isEmpty { break }
+            hasher.update(data: data)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func installedApplicationBundleIDs(home: URL) -> Set<String> {
+        let appRoots = [
+            URL(fileURLWithPath: "/Applications"),
+            home.appendingPathComponent("Applications")
+        ]
+        var bundleIDs = Set<String>()
+
+        for root in appRoots where fileManager.fileExists(atPath: root.path) {
+            guard let enumerator = fileManager.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants],
+                errorHandler: { _, _ in true }
+            ) else { continue }
+
+            while let url = enumerator.nextObject() as? URL {
+                guard url.pathExtension == "app" else { continue }
+                if let bundle = Bundle(url: url), let bundleID = bundle.bundleIdentifier {
+                    bundleIDs.insert(bundleID)
+                }
+                enumerator.skipDescendants()
+            }
+        }
+
+        return bundleIDs
+    }
+
+    private func probableBundleID(from url: URL) -> String? {
+        let name = url.deletingPathExtension().lastPathComponent
+        guard name.contains(".") else { return nil }
+        let parts = name.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")
+        guard name.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
+        return name
+    }
+
     private func developerDataRoots(home: URL) -> [URL] {
         [
             home.appendingPathComponent("Library/Developer/Xcode/DerivedData"),
             home.appendingPathComponent("Library/Developer/Xcode/Archives"),
+            home.appendingPathComponent("Library/Developer/Xcode/Products"),
+            home.appendingPathComponent("Library/Developer/Xcode/UserData/Previews"),
             home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport"),
             home.appendingPathComponent("Library/Developer/CoreSimulator/Devices"),
+            home.appendingPathComponent("Library/Developer/CoreSimulator/Caches"),
+            home.appendingPathComponent("Library/Developer/XCTestDevices"),
+            home.appendingPathComponent("Library/Caches/com.apple.dt.Xcode"),
             home.appendingPathComponent("Library/Caches/org.swift.swiftpm"),
             home.appendingPathComponent("Library/Caches/Homebrew"),
             home.appendingPathComponent(".npm"),
+            home.appendingPathComponent(".npm/_cacache"),
             home.appendingPathComponent(".cache/yarn"),
             home.appendingPathComponent("Library/Caches/Yarn"),
             home.appendingPathComponent(".pnpm-store"),
+            home.appendingPathComponent(".cache/pnpm"),
             home.appendingPathComponent("Library/pnpm/store"),
             home.appendingPathComponent(".gradle/caches"),
+            home.appendingPathComponent(".gradle/wrapper/dists"),
             home.appendingPathComponent(".m2/repository"),
+            home.appendingPathComponent(".cache/go-build"),
+            home.appendingPathComponent("go/pkg/mod/cache"),
+            home.appendingPathComponent(".cargo/registry/cache"),
+            home.appendingPathComponent(".cargo/git/checkouts"),
+            home.appendingPathComponent(".rustup/downloads"),
             home.appendingPathComponent("Library/Containers/com.docker.docker"),
-            home.appendingPathComponent("Library/Group Containers/group.com.docker")
+            home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms"),
+            home.appendingPathComponent("Library/Group Containers/group.com.docker"),
+            home.appendingPathComponent("Library/Group Containers/group.com.docker/cache")
         ]
     }
 

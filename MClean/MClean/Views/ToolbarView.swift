@@ -4,6 +4,7 @@ struct ToolbarView: View {
     @EnvironmentObject private var manager: CleanupManager
     let visibleItems: [CleanupItem]
     @Binding var showingDeleteAlert: Bool
+    @State private var showingTrashHistory = false
 
     var body: some View {
         HStack(spacing: 14) {
@@ -60,15 +61,26 @@ struct ToolbarView: View {
             .disabled(manager.missingItemCount == 0 || isScanning)
 
             Button {
+                showingTrashHistory = true
+            } label: {
+                Label("History", systemImage: "clock.arrow.circlepath")
+            }
+            .disabled(manager.trashHistory.isEmpty)
+
+            Button {
                 showingDeleteAlert = true
             } label: {
                 Label("Move to Trash", systemImage: "trash")
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)
-            .disabled(manager.selectedItems.isEmpty || isScanning)
+            .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
         }
         .padding(18)
+        .sheet(isPresented: $showingTrashHistory) {
+            TrashHistoryView()
+                .environmentObject(manager)
+        }
     }
 
     private var isScanning: Bool {
@@ -92,4 +104,71 @@ struct ToolbarView: View {
             return message
         }
     }
+}
+
+struct TrashHistoryView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var manager: CleanupManager
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Trash History")
+                        .font(.title2.weight(.semibold))
+                    Text("Items MClean moved to Trash in recent cleanup actions")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(20)
+
+            Divider()
+
+            List(manager.trashHistory) { entry in
+                HStack(spacing: 12) {
+                    Image(systemName: entry.canRestore ? "arrow.uturn.backward.circle" : "trash")
+                        .foregroundStyle(entry.canRestore ? .blue : .secondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(entry.itemName)
+                            .lineLimit(1)
+                        Text(entry.originalURL.path)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Text("\(ByteCount.string(entry.size)) - \(Self.dateFormatter.string(from: entry.movedAt))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        manager.restoreFromTrash(entry)
+                    } label: {
+                        Label("Restore", systemImage: "arrow.uturn.backward")
+                    }
+                    .disabled(!entry.canRestore)
+                }
+                .padding(.vertical, 4)
+            }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Close") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+            .padding(20)
+        }
+        .frame(minWidth: 720, minHeight: 520)
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
 }

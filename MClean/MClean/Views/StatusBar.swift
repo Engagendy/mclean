@@ -28,7 +28,7 @@ struct StatusBar: View {
             if manager.missingItemCount > 0 {
                 Text("\(manager.missingItemCount) missing")
             }
-            Text("\(manager.selectedItems.count) selected")
+            Text("\(manager.selectedItems.filter(\.canMoveToTrash).count) selected")
             Text(ByteCount.string(manager.selectedBytes))
                 .monospacedDigit()
         }

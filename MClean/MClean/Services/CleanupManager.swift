@@ -11,6 +11,8 @@ final class CleanupManager: ObservableObject {
     @Published var state: ScanState = .idle
     @Published var lastDeletionMessage: String?
     @Published var fullDiskAccessStatus = FullDiskAccessService.currentStatus()
+    @Published var detailItem: CleanupItem?
+    @Published var trashHistory: [TrashHistoryEntry] = []
 
     private let scanner = FileScanner()
     private var lastScannedAt: Date?
@@ -21,7 +23,7 @@ final class CleanupManager: ObservableObject {
     }
 
     var selectedBytes: Int64 {
-        selectedItems.filter(\.existsOnDisk).reduce(0) { $0 + $1.size }
+        selectedItems.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
     }
 
     var missingItemCount: Int {
@@ -41,6 +43,7 @@ final class CleanupManager: ObservableObject {
             lastScannedAt = stored.scannedAt
             state = .finished
         }
+        trashHistory = ScanResultsStore.loadTrashHistory()
     }
 
     func scan() {
@@ -73,7 +76,7 @@ final class CleanupManager: ObservableObject {
             )
 
             guard !Task.isCancelled else {
-                self.summary.reclaimableBytes = self.items.filter(\.existsOnDisk).reduce(0) { $0 + $1.size }
+                self.summary.reclaimableBytes = self.items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
                 self.lastScannedAt = Date()
                 ScanResultsStore.save(items: self.items, summary: self.summary)
                 self.scanTask = nil
@@ -107,8 +110,10 @@ final class CleanupManager: ObservableObject {
             options.includeDownloads = true
             options.includeTemporary = true
             options.includeLargeFiles = true
+            options.includeDuplicates = true
             options.includeOldFiles = false
             options.includeDeveloperData = true
+            options.includeAppLeftovers = true
             options.includeAppSupport = false
             options.includeSystemStorage = false
         case .deep:
@@ -116,8 +121,10 @@ final class CleanupManager: ObservableObject {
             options.includeDownloads = true
             options.includeTemporary = true
             options.includeLargeFiles = true
+            options.includeDuplicates = true
             options.includeOldFiles = true
             options.includeDeveloperData = true
+            options.includeAppLeftovers = true
             options.includeAppSupport = true
             options.includeSystemStorage = true
         case .custom:
@@ -136,7 +143,7 @@ final class CleanupManager: ObservableObject {
             items.sort { $0.size > $1.size }
             items.removeLast(items.count - options.maxResults)
         }
-        summary.reclaimableBytes = items.filter(\.existsOnDisk).reduce(0) { $0 + $1.size }
+        summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
     }
 
     func refreshFullDiskAccessStatus() {
@@ -148,6 +155,7 @@ final class CleanupManager: ObservableObject {
     }
 
     func toggleSelection(for item: CleanupItem) {
+        guard item.canMoveToTrash else { return }
         if selectedIDs.contains(item.id) {
             selectedIDs.remove(item.id)
         } else {
@@ -160,7 +168,7 @@ final class CleanupManager: ObservableObject {
     }
 
     func select(_ visibleItems: [CleanupItem]) {
-        selectedIDs.formUnion(visibleItems.filter(\.existsOnDisk).map(\.id))
+        selectedIDs.formUnion(visibleItems.filter(\.canMoveToTrash).map(\.id))
     }
 
     func clearSelection() {
@@ -171,23 +179,37 @@ final class CleanupManager: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([item.url])
     }
 
+    func showDetails(for item: CleanupItem) {
+        detailItem = item
+    }
+
     func removeMissingItems() {
         items.removeAll { !$0.existsOnDisk }
         selectedIDs = selectedIDs.intersection(Set(items.map(\.id)))
-        summary.reclaimableBytes = items.filter(\.existsOnDisk).reduce(0) { $0 + $1.size }
+        summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
         ScanResultsStore.save(items: items, summary: summary)
     }
 
     func moveSelectedToTrash() {
-        let targets = selectedItems.filter(\.existsOnDisk)
+        let targets = selectedItems.filter(\.canMoveToTrash)
         guard !targets.isEmpty else { return }
 
         var removed = 0
         var failed = 0
+        var newHistory: [TrashHistoryEntry] = []
         for item in targets {
             do {
                 var resultingURL: NSURL?
                 try FileManager.default.trashItem(at: item.url, resultingItemURL: &resultingURL)
+                if let resultingURL = resultingURL as URL? {
+                    newHistory.append(TrashHistoryEntry(
+                        itemName: item.name,
+                        originalURL: item.url,
+                        trashedURL: resultingURL,
+                        size: item.size,
+                        movedAt: Date()
+                    ))
+                }
                 removed += 1
             } catch {
                 failed += 1
@@ -197,11 +219,30 @@ final class CleanupManager: ObservableObject {
         let removedIDs = Set(targets.map(\.id))
         items.removeAll { removedIDs.contains($0.id) && !FileManager.default.fileExists(atPath: $0.path) }
         selectedIDs.subtract(removedIDs)
-        summary.reclaimableBytes = items.filter(\.existsOnDisk).reduce(0) { $0 + $1.size }
+        summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
+        if !newHistory.isEmpty {
+            trashHistory.insert(contentsOf: newHistory, at: 0)
+            trashHistory = Array(trashHistory.prefix(100))
+            ScanResultsStore.saveTrashHistory(trashHistory)
+        }
         lastDeletionMessage = failed == 0
             ? "Moved \(removed) item\(removed == 1 ? "" : "s") to Trash."
             : "Moved \(removed) item\(removed == 1 ? "" : "s") to Trash. \(failed) failed."
         ScanResultsStore.save(items: items, summary: summary)
+    }
+
+    func restoreFromTrash(_ entry: TrashHistoryEntry) {
+        guard entry.canRestore else { return }
+        do {
+            let parent = entry.originalURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+            try FileManager.default.moveItem(at: entry.trashedURL, to: entry.originalURL)
+            trashHistory.removeAll { $0.id == entry.id }
+            ScanResultsStore.saveTrashHistory(trashHistory)
+            lastDeletionMessage = "Restored \(entry.itemName)."
+        } catch {
+            lastDeletionMessage = "Could not restore \(entry.itemName)."
+        }
     }
 
     private static let scanDateFormatter: DateFormatter = {

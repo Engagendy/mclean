@@ -30,6 +30,10 @@ struct MoveToTrashPreviewView: View {
         selectedItems.filter { !$0.existsOnDisk }.count
     }
 
+    private var protectedCount: Int {
+        selectedItems.filter { !$0.canMoveToTrash }.count
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -46,7 +50,7 @@ struct MoveToTrashPreviewView: View {
 
             Divider()
 
-            if highRiskCount > 0 || missingCount > 0 {
+            if highRiskCount > 0 || missingCount > 0 || protectedCount > 0 {
                 VStack(alignment: .leading, spacing: 6) {
                     if highRiskCount > 0 {
                         Label("\(highRiskCount) high-risk item\(highRiskCount == 1 ? "" : "s") selected. Review these in Finder before removing.", systemImage: "exclamationmark.triangle")
@@ -55,6 +59,10 @@ struct MoveToTrashPreviewView: View {
                     if missingCount > 0 {
                         Label("\(missingCount) item\(missingCount == 1 ? "" : "s") no longer exist on disk and will be ignored.", systemImage: "questionmark.folder")
                             .foregroundStyle(.secondary)
+                    }
+                    if protectedCount > 0 {
+                        Label("\(protectedCount) protected item\(protectedCount == 1 ? "" : "s") will be ignored.", systemImage: "lock.shield")
+                            .foregroundStyle(.red)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -101,7 +109,7 @@ struct MoveToTrashPreviewView: View {
                     Label("Move to Trash", systemImage: "trash")
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(selectedItems.allSatisfy { !$0.existsOnDisk })
+                .disabled(selectedItems.allSatisfy { !$0.canMoveToTrash })
             }
             .padding(20)
         }
@@ -141,6 +149,7 @@ private struct MoveToTrashPreviewRow: View {
             Spacer()
 
             RiskBadge(risk: item.risk)
+            ProtectionBadge(protection: item.protection)
             Text(ByteCount.string(item.size))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)

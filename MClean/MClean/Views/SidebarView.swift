@@ -57,8 +57,10 @@ struct SidebarView: View {
                     Toggle("Downloads", isOn: optionBinding(\.includeDownloads))
                     Toggle("Temporary", isOn: optionBinding(\.includeTemporary))
                     Toggle("Large files", isOn: optionBinding(\.includeLargeFiles))
+                    Toggle("Duplicates", isOn: optionBinding(\.includeDuplicates))
                     Toggle("Old files", isOn: optionBinding(\.includeOldFiles))
                     Toggle("Developer data", isOn: optionBinding(\.includeDeveloperData))
+                    Toggle("App leftovers", isOn: optionBinding(\.includeAppLeftovers))
                     Toggle("App support", isOn: optionBinding(\.includeAppSupport))
                     Toggle("System storage", isOn: optionBinding(\.includeSystemStorage))
 
