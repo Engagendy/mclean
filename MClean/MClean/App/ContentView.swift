@@ -4,7 +4,7 @@ struct ContentView: View {
     @EnvironmentObject private var manager: CleanupManager
     @State private var selectedDestination = SidebarDestination.dashboard
     @State private var showingDeleteAlert = false
-    @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var isSidebarVisible = true
 
     private var filteredItems: [CleanupItem] {
         switch selectedDestination {
@@ -16,33 +16,52 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(selectedDestination: $selectedDestination)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
-        } detail: {
-            VStack(spacing: 0) {
-                switch selectedDestination {
-                case .dashboard:
-                    DashboardDetailView(showingDeleteAlert: $showingDeleteAlert)
-                case .allFindings, .category:
-                    FindingsDetailView(visibleItems: filteredItems, showingDeleteAlert: $showingDeleteAlert)
+        HStack(spacing: 0) {
+            if isSidebarVisible {
+                SidebarView(selectedDestination: $selectedDestination)
+                    .frame(width: 260)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+                Divider()
+            }
+
+            detailContent
+        }
+        .frame(minWidth: 980, minHeight: 640)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    withAnimation(.snappy(duration: 0.18)) {
+                        isSidebarVisible.toggle()
+                    }
+                } label: {
+                    Image(systemName: "sidebar.left")
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .sheet(isPresented: $showingDeleteAlert) {
-                MoveToTrashPreviewView(isPresented: $showingDeleteAlert)
-                    .environmentObject(manager)
-            }
-            .sheet(item: $manager.detailItem) { item in
-                FileDetailsView(item: item)
-                    .environmentObject(manager)
+                .help(isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
             }
         }
-        .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 980, minHeight: 640)
         .onAppear {
             manager.refreshFullDiskAccessStatus()
             manager.refreshDiskSpace()
+        }
+    }
+
+    private var detailContent: some View {
+        VStack(spacing: 0) {
+            switch selectedDestination {
+            case .dashboard:
+                DashboardDetailView(showingDeleteAlert: $showingDeleteAlert)
+            case .allFindings, .category:
+                FindingsDetailView(visibleItems: filteredItems, showingDeleteAlert: $showingDeleteAlert)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $showingDeleteAlert) {
+            MoveToTrashPreviewView(isPresented: $showingDeleteAlert)
+                .environmentObject(manager)
+        }
+        .sheet(item: $manager.detailItem) { item in
+            FileDetailsView(item: item)
+                .environmentObject(manager)
         }
     }
 }

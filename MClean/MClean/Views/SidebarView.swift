@@ -11,81 +11,65 @@ struct SidebarView: View {
     @Binding var selectedDestination: SidebarDestination
 
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("MClean")
-                    .font(.title2.weight(.semibold))
-                Text("Mac cleanup scanner")
+        List(selection: $selectedDestination) {
+            Section("Mode") {
+                Picker("Scan mode", selection: Binding(
+                    get: { manager.scanMode },
+                    set: { manager.applyScanMode($0) }
+                )) {
+                    ForEach(ScanMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(manager.scanMode.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 8)
 
-            List(selection: $selectedDestination) {
-                Section("Mode") {
-                    Picker("Scan mode", selection: Binding(
-                        get: { manager.scanMode },
-                        set: { manager.applyScanMode($0) }
-                    )) {
-                        ForEach(ScanMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+            Section("Views") {
+                Label("Dashboard", systemImage: "chart.pie")
+                    .tag(SidebarDestination.dashboard)
+                Label("All Findings", systemImage: "sparkle.magnifyingglass")
+                    .tag(SidebarDestination.allFindings)
+            }
 
-                    Text(manager.scanMode.description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section {
-                    Label("Dashboard", systemImage: "chart.pie")
-                        .tag(SidebarDestination.dashboard)
-                    Label("All Findings", systemImage: "sparkle.magnifyingglass")
-                        .tag(SidebarDestination.allFindings)
-                }
-
-                Section("Categories") {
-                    ForEach(CleanupCategory.allCases) { category in
-                        Label(category.rawValue, systemImage: category.symbolName)
-                            .tag(SidebarDestination.category(category))
-                    }
-                }
-
-                Section("Scan") {
-                    Toggle("Caches", isOn: optionBinding(\.includeCaches))
-                    Toggle("Downloads", isOn: optionBinding(\.includeDownloads))
-                    Toggle("Temporary", isOn: optionBinding(\.includeTemporary))
-                    Toggle("Large files", isOn: optionBinding(\.includeLargeFiles))
-                    Toggle("Duplicates", isOn: optionBinding(\.includeDuplicates))
-                    Toggle("Old files", isOn: optionBinding(\.includeOldFiles))
-                    Toggle("Developer data", isOn: optionBinding(\.includeDeveloperData))
-                    Toggle("App leftovers", isOn: optionBinding(\.includeAppLeftovers))
-                    Toggle("App support", isOn: optionBinding(\.includeAppSupport))
-                    Toggle("System storage", isOn: optionBinding(\.includeSystemStorage))
-
-                    VStack(alignment: .leading) {
-                        Text("Large threshold")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Stepper("\(manager.options.largeFileThresholdMB) MB", value: $manager.options.largeFileThresholdMB, in: 100...5_000, step: 100)
-                    }
-
-                    VStack(alignment: .leading) {
-                        Text("Old file age")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Stepper("\(manager.options.oldFileAgeDays) days", value: $manager.options.oldFileAgeDays, in: 90...2_000, step: 30)
-                    }
+            Section("Categories") {
+                ForEach(CleanupCategory.allCases) { category in
+                    Label(category.rawValue, systemImage: category.symbolName)
+                        .tag(SidebarDestination.category(category))
                 }
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
+
+            Section("Scan") {
+                Toggle("Caches", isOn: optionBinding(\.includeCaches))
+                Toggle("Downloads", isOn: optionBinding(\.includeDownloads))
+                Toggle("Temporary", isOn: optionBinding(\.includeTemporary))
+                Toggle("Large files", isOn: optionBinding(\.includeLargeFiles))
+                Toggle("Duplicates", isOn: optionBinding(\.includeDuplicates))
+                Toggle("Old files", isOn: optionBinding(\.includeOldFiles))
+                Toggle("Developer data", isOn: optionBinding(\.includeDeveloperData))
+                Toggle("App leftovers", isOn: optionBinding(\.includeAppLeftovers))
+                Toggle("App support", isOn: optionBinding(\.includeAppSupport))
+                Toggle("System storage", isOn: optionBinding(\.includeSystemStorage))
+
+                VStack(alignment: .leading) {
+                    Text("Large threshold")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Stepper("\(manager.options.largeFileThresholdMB) MB", value: $manager.options.largeFileThresholdMB, in: 100...5_000, step: 100)
+                }
+
+                VStack(alignment: .leading) {
+                    Text("Old file age")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Stepper("\(manager.options.oldFileAgeDays) days", value: $manager.options.oldFileAgeDays, in: 90...2_000, step: 30)
+                }
+            }
         }
-        .background(.ultraThinMaterial)
+        .listStyle(.sidebar)
     }
 
     private func optionBinding(_ keyPath: WritableKeyPath<ScanOptions, Bool>) -> Binding<Bool> {
