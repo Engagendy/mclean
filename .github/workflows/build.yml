@@ -89,7 +89,14 @@ jobs:
 
           ### Homebrew
           ```
+          brew tap Engagendy/tap
           brew install --cask mclean
+          ```
+
+          ### Gatekeeper Bypass
+          If macOS blocks the app, run:
+          ```
+          xattr -cr /Applications/MClean.app
           ```
           FOOTER
 
@@ -119,13 +126,19 @@ jobs:
           DMG_URL="https://github.com/Engagendy/mclean/releases/download/${{ steps.version.outputs.tag }}/MClean-${{ steps.version.outputs.version }}-arm64.dmg"
           for i in $(seq 1 30); do
             if curl -fsSL -o /tmp/mclean.dmg "$DMG_URL" 2>/dev/null; then
+              echo "Downloaded DMG"
               break
             fi
+            echo "Attempt $i: asset not ready, retrying in 10s..."
             sleep 10
           done
-          test -f /tmp/mclean.dmg
+          if [ ! -f /tmp/mclean.dmg ]; then
+            echo "ERROR: Could not download DMG after 30 attempts"
+            exit 1
+          fi
           SHA=$(sha256sum /tmp/mclean.dmg | awk '{print $1}')
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "SHA256: $SHA"
 
       - name: Checkout Homebrew tap
         uses: actions/checkout@v4
