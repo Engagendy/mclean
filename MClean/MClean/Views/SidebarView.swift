@@ -1,8 +1,14 @@
 import SwiftUI
 
+enum SidebarDestination: Hashable {
+    case dashboard
+    case allFindings
+    case category(CleanupCategory)
+}
+
 struct SidebarView: View {
     @EnvironmentObject private var manager: CleanupManager
-    @Binding var selectedCategory: CleanupCategory?
+    @Binding var selectedDestination: SidebarDestination
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,12 +24,7 @@ struct SidebarView: View {
             .padding(.top, 14)
             .padding(.bottom, 8)
 
-            List(selection: Binding(
-                get: { selectedCategory?.rawValue ?? "all" },
-                set: { value in
-                    selectedCategory = CleanupCategory.allCases.first { $0.rawValue == value }
-                }
-            )) {
+            List(selection: $selectedDestination) {
                 Section("Mode") {
                     Picker("Scan mode", selection: Binding(
                         get: { manager.scanMode },
@@ -41,14 +42,16 @@ struct SidebarView: View {
                 }
 
                 Section {
+                    Label("Dashboard", systemImage: "chart.pie")
+                        .tag(SidebarDestination.dashboard)
                     Label("All Findings", systemImage: "sparkle.magnifyingglass")
-                        .tag("all")
+                        .tag(SidebarDestination.allFindings)
                 }
 
                 Section("Categories") {
                     ForEach(CleanupCategory.allCases) { category in
                         Label(category.rawValue, systemImage: category.symbolName)
-                            .tag(category.rawValue)
+                            .tag(SidebarDestination.category(category))
                     }
                 }
 
