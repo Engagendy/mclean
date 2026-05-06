@@ -124,4 +124,6 @@ On tag push, GitHub Actions:
 - attaches the DMG release asset
 - updates `Engagendy/homebrew-tap` with the new cask version and SHA256
 
+The automatic tap update requires a `HOMEBREW_TAP_TOKEN` repository secret on `Engagendy/mclean`. Use a fine-grained GitHub token with Contents read/write access to `Engagendy/homebrew-tap`.
+
 Repository: https://github.com/Engagendy/mclean
