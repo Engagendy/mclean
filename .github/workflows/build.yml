@@ -1,0 +1,181 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build DMG (${{ matrix.arch }})
+    runs-on: macos-15
+    strategy:
+      matrix:
+        arch: [arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=v$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Xcode 16
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16'
+
+      - name: Build & Package
+        run: ./scripts/package.sh --arch ${{ matrix.arch }} --version ${{ steps.version.outputs.version }}
+
+      - name: Upload DMG artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmg-${{ matrix.arch }}
+          path: build/MClean-*.dmg
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=v$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Download DMG artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: dmg-*
+          merge-multiple: true
+
+      - name: Generate release notes
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | sed -n '2p')
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s" "$PREV_TAG"..HEAD)
+          else
+            NOTES=$(git log --pretty=format:"- %s")
+          fi
+          cat > release_notes.md << 'HEADER'
+          ## What's New
+
+          HEADER
+          echo "$NOTES" >> release_notes.md
+          cat >> release_notes.md << 'FOOTER'
+
+          ## Installation
+
+          ### Direct Download
+          1. Download the `.dmg` file below
+          2. Open the DMG and drag **MClean** to Applications
+          3. On first launch, right-click the app, choose **Open**, then confirm
+
+          ### Homebrew
+          ```
+          brew install --cask mclean
+          ```
+          FOOTER
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release_notes.md
+          files: artifacts/*.dmg
+          draft: false
+          prerelease: false
+
+  update-homebrew:
+    name: Update Homebrew Cask
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=v$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Download DMG and compute SHA256
+        id: sha
+        run: |
+          DMG_URL="https://github.com/Engagendy/mclean/releases/download/${{ steps.version.outputs.tag }}/MClean-${{ steps.version.outputs.version }}-arm64.dmg"
+          for i in $(seq 1 30); do
+            if curl -fsSL -o /tmp/mclean.dmg "$DMG_URL" 2>/dev/null; then
+              break
+            fi
+            sleep 10
+          done
+          test -f /tmp/mclean.dmg
+          SHA=$(sha256sum /tmp/mclean.dmg | awk '{print $1}')
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: Engagendy/homebrew-tap
+          ref: ${{ vars.HOMEBREW_TAP_BRANCH || 'main' }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update cask formula
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          SHA="${{ steps.sha.outputs.sha256 }}"
+
+          cat > homebrew-tap/Casks/mclean.rb << CASKEOF
+          cask "mclean" do
+            version "$VERSION"
+            sha256 "$SHA"
+
+            url "https://github.com/Engagendy/mclean/releases/download/$TAG/MClean-#{version}-arm64.dmg",
+                verified: "github.com/Engagendy/mclean/"
+
+            name "MClean"
+            desc "Native macOS cleanup scanner for cache, temporary, old, and large files"
+            homepage "https://github.com/Engagendy/mclean"
+
+            depends_on macos: ">= :sonoma"
+
+            app "MClean.app"
+
+            postflight do
+              system_command "/usr/bin/xattr",
+                             args: ["-cr", "#{appdir}/MClean.app"],
+                             sudo: false
+            end
+
+            zap trash: [
+              "~/Library/Caches/com.engagendy.MClean",
+              "~/Library/Preferences/com.engagendy.MClean.plist",
+              "~/Library/Saved Application State/com.engagendy.MClean.savedState",
+            ]
+          end
+          CASKEOF
+
+      - name: Commit and push cask update
+        working-directory: homebrew-tap
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/mclean.rb
+          git commit -m "Update mclean to ${{ steps.version.outputs.version }}"
+          git push
