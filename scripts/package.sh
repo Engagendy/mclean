@@ -78,6 +78,8 @@ echo "-> Writing bundle metadata"
 
 echo "-> Ad-hoc signing"
 codesign --force --deep --sign - "$APP_DIR" >/dev/null
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+    -f "$APP_DIR" >/dev/null 2>&1 || true
 
 echo "-> Creating DMG"
 rm -rf "$DMG_DIR"
