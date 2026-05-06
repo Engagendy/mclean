@@ -193,6 +193,20 @@ struct TrashHistoryEntry: Identifiable, Codable, Hashable {
     }
 }
 
+struct DiskSpaceSnapshot: Equatable {
+    var totalBytes: Int64 = 0
+    var freeBytes: Int64 = 0
+
+    var usedBytes: Int64 {
+        max(totalBytes - freeBytes, 0)
+    }
+
+    var usedFraction: Double {
+        guard totalBytes > 0 else { return 0 }
+        return min(max(Double(usedBytes) / Double(totalBytes), 0), 1)
+    }
+}
+
 enum ScanState: Equatable {
     case idle
     case scanning(String)

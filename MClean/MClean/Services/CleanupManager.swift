@@ -13,6 +13,7 @@ final class CleanupManager: ObservableObject {
     @Published var fullDiskAccessStatus = FullDiskAccessService.currentStatus()
     @Published var detailItem: CleanupItem?
     @Published var trashHistory: [TrashHistoryEntry] = []
+    @Published var diskSpace = DiskSpaceSnapshot()
 
     private let scanner = FileScanner()
     private var lastScannedAt: Date?
@@ -30,6 +31,20 @@ final class CleanupManager: ObservableObject {
         items.filter { !$0.existsOnDisk }.count
     }
 
+    var categoryTotals: [(category: CleanupCategory, bytes: Int64)] {
+        CleanupCategory.allCases.compactMap { category in
+            let bytes = items
+                .filter { $0.category == category && $0.existsOnDisk }
+                .reduce(Int64(0)) { $0 + $1.size }
+            return bytes > 0 ? (category, bytes) : nil
+        }
+        .sorted { $0.bytes > $1.bytes }
+    }
+
+    var protectedItemCount: Int {
+        items.filter { !$0.canMoveToTrash }.count
+    }
+
     var lastScanDescription: String? {
         guard let lastScannedAt else { return nil }
         return Self.scanDateFormatter.string(from: lastScannedAt)
@@ -44,6 +59,7 @@ final class CleanupManager: ObservableObject {
             state = .finished
         }
         trashHistory = ScanResultsStore.loadTrashHistory()
+        refreshDiskSpace()
     }
 
     func scan() {
@@ -53,6 +69,7 @@ final class CleanupManager: ObservableObject {
         items.removeAll()
         summary = ScanSummary()
         refreshFullDiskAccessStatus()
+        refreshDiskSpace()
         state = .scanning("Preparing scan")
 
         scanTask = Task { [weak self] in
@@ -89,6 +106,7 @@ final class CleanupManager: ObservableObject {
             lastScannedAt = Date()
             ScanResultsStore.save(items: items, summary: summary)
             refreshFullDiskAccessStatus()
+            refreshDiskSpace()
             scanTask = nil
             state = .finished
         }
@@ -154,6 +172,17 @@ final class CleanupManager: ObservableObject {
         FullDiskAccessService.openSettings()
     }
 
+    func refreshDiskSpace() {
+        let path = FileManager.default.homeDirectoryForCurrentUser.path
+        guard let attributes = try? FileManager.default.attributesOfFileSystem(forPath: path),
+              let total = attributes[.systemSize] as? NSNumber,
+              let free = attributes[.systemFreeSize] as? NSNumber else {
+            diskSpace = DiskSpaceSnapshot()
+            return
+        }
+        diskSpace = DiskSpaceSnapshot(totalBytes: total.int64Value, freeBytes: free.int64Value)
+    }
+
     func toggleSelection(for item: CleanupItem) {
         guard item.canMoveToTrash else { return }
         if selectedIDs.contains(item.id) {
@@ -188,6 +217,7 @@ final class CleanupManager: ObservableObject {
         selectedIDs = selectedIDs.intersection(Set(items.map(\.id)))
         summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
         ScanResultsStore.save(items: items, summary: summary)
+        refreshDiskSpace()
     }
 
     func moveSelectedToTrash() {
@@ -229,6 +259,7 @@ final class CleanupManager: ObservableObject {
             ? "Moved \(removed) item\(removed == 1 ? "" : "s") to Trash."
             : "Moved \(removed) item\(removed == 1 ? "" : "s") to Trash. \(failed) failed."
         ScanResultsStore.save(items: items, summary: summary)
+        refreshDiskSpace()
     }
 
     func restoreFromTrash(_ entry: TrashHistoryEntry) {
@@ -240,6 +271,7 @@ final class CleanupManager: ObservableObject {
             trashHistory.removeAll { $0.id == entry.id }
             ScanResultsStore.saveTrashHistory(trashHistory)
             lastDeletionMessage = "Restored \(entry.itemName)."
+            refreshDiskSpace()
         } catch {
             lastDeletionMessage = "Could not restore \(entry.itemName)."
         }
