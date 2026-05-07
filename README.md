@@ -80,6 +80,10 @@ MClean can scan normal user folders without Full Disk Access. macOS blocks some 
 - Duplicate file grouping and app-leftover detection.
 - Developer cleanup coverage for Xcode, simulators, npm, pnpm, Gradle, Docker, Go, Cargo, and related caches.
 
+## Roadmap
+
+The tracked implementation plan lives in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). It covers cleanup coverage, user experience, and power features with task status and acceptance criteria.
+
 ## Safety Model
 
 MClean defaults to reversible cleanup paths. Selected items can be moved to Stage first, then restored, moved to Trash, or permanently deleted from the Stage view after confirmation. The direct cleanup action still moves selected items to the macOS Trash so the user can restore them if needed.
