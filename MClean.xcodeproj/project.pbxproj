@@ -14,6 +14,7 @@
 		4A6A8775633709E6F568AB75 /* FullDiskAccessService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52FACBCF319C9DD24A729BC7 /* FullDiskAccessService.swift */; };
 		4BA2C84F453FD6BAAB8B07DC /* ResultsTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4695A1B4B9DA928B023F4D1D /* ResultsTable.swift */; };
 		4C38FD3AC3FC4B6876C0DD1F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255486FCD2078420B0CC2166 /* ContentView.swift */; };
+		51F600A88AC20DA7083E72B9 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBF8FFB84A2B8A447F1550B /* HelpView.swift */; };
 		55F34B9098F55B158B7F67C6 /* ByteCount.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF22E8CBCE5CE4112626542 /* ByteCount.swift */; };
 		5D250D409B268093617B386C /* ScanResultsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32A79154C1A8CA8B1C43F87C /* ScanResultsStore.swift */; };
 		72E92B1B30B949C6B62C0228 /* MCleanCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D4D402E6E524FEA974F6EF5 /* MCleanCLI.swift */; };
@@ -27,6 +28,7 @@
 
 /* Begin PBXFileReference section */
 		17CA6BA1CB19383218F17495 /* CleanupItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupItem.swift; sourceTree = "<group>"; };
+		0CBF8FFB84A2B8A447F1550B /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		255486FCD2078420B0CC2166 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		26E02991D85017272FF10231 /* MCleanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCleanApp.swift; sourceTree = "<group>"; };
 		32A79154C1A8CA8B1C43F87C /* ScanResultsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResultsStore.swift; sourceTree = "<group>"; };
@@ -109,6 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				D2ECA0A980B7D91942961672 /* FullDiskAccessBanner.swift */,
+				0CBF8FFB84A2B8A447F1550B /* HelpView.swift */,
 				8E0ABBFF393F5BD973E1C18C /* MoveToTrashPreviewView.swift */,
 				4695A1B4B9DA928B023F4D1D /* ResultsTable.swift */,
 				487FFCEF9665C96CCBAE7939 /* SidebarView.swift */,
@@ -196,6 +199,7 @@
 				8D25768E71154B9F9E2060D2 /* FileScanner.swift in Sources */,
 				E2B4B56B06ADE8F0D6F362E7 /* FullDiskAccessBanner.swift in Sources */,
 				4A6A8775633709E6F568AB75 /* FullDiskAccessService.swift in Sources */,
+				51F600A88AC20DA7083E72B9 /* HelpView.swift in Sources */,
 				453D22CC68A71DBA20A97900 /* MCleanApp.swift in Sources */,
 				72E92B1B30B949C6B62C0228 /* MCleanCLI.swift in Sources */,
 				3A4E8682258890D1ED80B8FB /* MoveToTrashPreviewView.swift in Sources */,

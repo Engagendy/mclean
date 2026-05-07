@@ -4,6 +4,7 @@ struct ContentView: View {
     @EnvironmentObject private var manager: CleanupManager
     @State private var selectedDestination = SidebarDestination.dashboard
     @State private var showingDeleteAlert = false
+    @State private var showingHelp = false
     @State private var isSidebarVisible = true
     @State private var findingsFilter = FindingsFilter()
 
@@ -52,13 +53,14 @@ struct ContentView: View {
         VStack(spacing: 0) {
             switch selectedDestination {
             case .dashboard:
-                DashboardDetailView(showingDeleteAlert: $showingDeleteAlert)
+                DashboardDetailView(showingDeleteAlert: $showingDeleteAlert, showingHelp: $showingHelp)
             case .allFindings, .category:
                 FindingsDetailView(
                     visibleItems: filteredItems,
                     totalItems: manager.items.count,
                     filter: $findingsFilter,
-                    showingDeleteAlert: $showingDeleteAlert
+                    showingDeleteAlert: $showingDeleteAlert,
+                    showingHelp: $showingHelp
                 )
             }
         }
@@ -70,6 +72,9 @@ struct ContentView: View {
         .sheet(item: $manager.detailItem) { item in
             FileDetailsView(item: item)
                 .environmentObject(manager)
+        }
+        .sheet(isPresented: $showingHelp) {
+            HelpView()
         }
     }
 }
@@ -154,10 +159,11 @@ struct FindingsDetailView: View {
     let totalItems: Int
     @Binding var filter: FindingsFilter
     @Binding var showingDeleteAlert: Bool
+    @Binding var showingHelp: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            ToolbarView(visibleItems: visibleItems, showingDeleteAlert: $showingDeleteAlert)
+            ToolbarView(visibleItems: visibleItems, showingDeleteAlert: $showingDeleteAlert, showingHelp: $showingHelp)
             Divider()
             FullDiskAccessBanner()
             Divider()
@@ -278,6 +284,7 @@ struct FindingsFilterBar: View {
 struct DashboardDetailView: View {
     @EnvironmentObject private var manager: CleanupManager
     @Binding var showingDeleteAlert: Bool
+    @Binding var showingHelp: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -310,6 +317,14 @@ struct DashboardDetailView: View {
                     .buttonStyle(.mcleanAccentAction)
 
                     Menu {
+                        Button {
+                            showingHelp = true
+                        } label: {
+                            Label("Help", systemImage: "questionmark.circle")
+                        }
+
+                        Divider()
+
                         SettingsLink {
                             Label("Settings", systemImage: "gearshape")
                         }

@@ -5,6 +5,7 @@ struct ToolbarView: View {
     @EnvironmentObject private var manager: CleanupManager
     let visibleItems: [CleanupItem]
     @Binding var showingDeleteAlert: Bool
+    @Binding var showingHelp: Bool
     @State private var showingTrashHistory = false
     @State private var showingStage = false
     @State private var showingDuplicateReview = false
@@ -75,6 +76,13 @@ struct ToolbarView: View {
 
                 SettingsLink {
                     Label("Settings", systemImage: "gearshape")
+                }
+                .buttonStyle(.mcleanAction)
+
+                Button {
+                    showingHelp = true
+                } label: {
+                    Label("Help", systemImage: "questionmark.circle")
                 }
                 .buttonStyle(.mcleanAction)
 
@@ -183,22 +191,11 @@ struct AppLeftoverReviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("App Leftovers")
-                        .font(.title2.weight(.semibold))
-                    Text("\(manager.appLeftoverGroups.count) app group\(manager.appLeftoverGroups.count == 1 ? "" : "s") found")
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 16)
-
-                Button("Close") {
-                    isPresented = false
-                }
-                .keyboardShortcut(.cancelAction)
-                .buttonStyle(.mcleanAction)
+            MCleanModalHeader(
+                title: "App Leftovers",
+                subtitle: "\(manager.appLeftoverGroups.count) app group\(manager.appLeftoverGroups.count == 1 ? "" : "s") found"
+            ) {
+                isPresented = false
             }
             .padding(18)
 
@@ -314,14 +311,11 @@ struct DuplicateReviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Duplicate Review")
-                        .font(.title2.weight(.semibold))
-                    Text("\(manager.duplicateGroups.count) groups, \(ByteCount.string(totalReclaimableBytes)) potential cleanup")
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
+            MCleanModalHeader(
+                title: "Duplicate Review",
+                subtitle: "\(manager.duplicateGroups.count) groups, \(ByteCount.string(totalReclaimableBytes)) potential cleanup"
+            ) {
+                isPresented = false
             }
             .padding(20)
 
@@ -340,11 +334,6 @@ struct DuplicateReviewView: View {
             WrappingHStack(spacing: 10, lineSpacing: 8) {
                 Text("\(selectedDuplicateCount) selected, \(ByteCount.string(selectedDuplicateBytes))")
                     .foregroundStyle(.secondary)
-                Button("Close") {
-                    isPresented = false
-                }
-                .keyboardShortcut(.cancelAction)
-                .buttonStyle(.mcleanAction)
 
                 Button {
                     manager.moveSelectedToStage()
@@ -501,14 +490,11 @@ struct StageView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            WrappingHStack(spacing: 10, lineSpacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Stage")
-                        .font(.title2.weight(.semibold))
-                    Text(stageSubtitle)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            HStack(alignment: .top, spacing: 14) {
+                MCleanModalTitle(title: "Stage", subtitle: stageSubtitle)
+
+                Spacer(minLength: 16)
+
                 if !manager.staleStageEntries.isEmpty {
                     Button {
                         confirmingMoveStaleToTrash = true
@@ -523,8 +509,13 @@ struct StageView: View {
                     Label("Reveal Stage", systemImage: "folder")
                 }
                 .buttonStyle(.mcleanAction)
+
+                Button("Close") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+                .buttonStyle(.mcleanAction)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
 
             Divider()
@@ -547,11 +538,6 @@ struct StageView: View {
                 Text("\(manager.stageEntries.count) staged item\(manager.stageEntries.count == 1 ? "" : "s")")
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Close") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-                .buttonStyle(.mcleanAction)
             }
             .padding(20)
         }
@@ -701,14 +687,11 @@ struct TrashHistoryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Trash History")
-                        .font(.title2.weight(.semibold))
-                    Text("Items MClean moved to Trash in recent cleanup actions")
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
+            MCleanModalHeader(
+                title: "Trash History",
+                subtitle: "Items MClean moved to Trash in recent cleanup actions"
+            ) {
+                dismiss()
             }
             .padding(20)
 
@@ -741,17 +724,6 @@ struct TrashHistoryView: View {
                 .padding(.vertical, 4)
             }
 
-            Divider()
-
-            HStack {
-                Spacer()
-                Button("Close") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-                .buttonStyle(.mcleanAction)
-            }
-            .padding(20)
         }
         .frame(minWidth: 720, minHeight: 520)
     }
@@ -771,6 +743,41 @@ private extension StageView {
         formatter.timeStyle = .short
         return formatter
     }()
+}
+
+struct MCleanModalHeader: View {
+    let title: String
+    let subtitle: String
+    let closeAction: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            MCleanModalTitle(title: title, subtitle: subtitle)
+
+            Spacer(minLength: 16)
+
+            Button("Close") {
+                closeAction()
+            }
+            .keyboardShortcut(.cancelAction)
+            .buttonStyle(.mcleanAction)
+        }
+    }
+}
+
+struct MCleanModalTitle: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.title2.weight(.semibold))
+            Text(subtitle)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 }
 
 struct WrappingHStack: Layout {

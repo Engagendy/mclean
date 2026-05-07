@@ -18,7 +18,19 @@
 
 ---
 
-MClean is a native SwiftUI macOS app for finding cleanup candidates on a Mac. It scans common cache, temporary, Downloads, large-file, and old-file locations, then lets the user review selected items, move them to Stage for testing, or move them to Trash.
+MClean is a native SwiftUI macOS app for finding cleanup candidates on a Mac. It scans common cache, temporary, Downloads, large-file, developer, browser-cache, duplicate, and app-leftover locations, then lets the user review selected items, move them to Stage for testing, or move them to Trash.
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="MClean dashboard showing scan modes, disk usage, cleanup potential, and category totals" width="900">
+</p>
+
+## Why MClean
+
+- **Designed for review, not surprise deletion.** Cleanup starts with scan results and explicit selection.
+- **Stage-first workflow.** Move files to Stage, test your apps, then restore, Trash, or delete staged items.
+- **Developer-aware cleanup.** Xcode, simulators, npm, pnpm, Python, Gradle, Go, Cargo, Rust, Docker, and related caches are named clearly.
+- **Safer browser and app-leftover handling.** Browser cache modules avoid sensitive profile data, and leftovers are grouped by bundle with confidence labels.
+- **Built-in help.** The app now includes a Help sheet with screenshots and feature guidance.
 
 ## Quick Start
 
@@ -88,6 +100,24 @@ MClean can scan normal user folders without Full Disk Access. macOS blocks some 
 - Trash history with restore support for recently moved items.
 - Duplicate file grouping and app-leftover detection.
 - Developer cleanup coverage for Xcode, simulators, npm, pnpm, Python `__pycache__`, Gradle, review-only Docker storage, Go, Cargo, and related caches.
+
+## Screenshots
+
+### Dashboard
+
+The dashboard summarizes disk usage, cleanup potential, selected bytes, scan progress, and category totals.
+
+![MClean dashboard](docs/screenshots/dashboard.png)
+
+### Settings
+
+Settings manage scan profiles, exclusions, Stage reminders, scheduled scan reporting, and direct Trash visibility.
+
+![MClean settings](docs/screenshots/settings.png)
+
+## In-App Help
+
+Open **Help** from the dashboard action menu or the findings toolbar. The Help sheet explains scan modes, review workflow, Stage, settings, and Full Disk Access with product screenshots.
 
 ## Roadmap
 

@@ -36,15 +36,11 @@ struct MoveToTrashPreviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Review Before Moving to Trash")
-                        .font(.title2.weight(.semibold))
-                    Text("\(selectedItems.count) selected, \(ByteCount.string(manager.selectedBytes)) total")
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
+            MCleanModalHeader(
+                title: "Review Before Moving to Trash",
+                subtitle: "\(selectedItems.count) selected, \(ByteCount.string(manager.selectedBytes)) total"
+            ) {
+                isPresented = false
             }
             .padding(20)
 
@@ -86,12 +82,6 @@ struct MoveToTrashPreviewView: View {
             Divider()
 
             WrappingHStack(spacing: 10, lineSpacing: 8) {
-                Button("Cancel") {
-                    isPresented = false
-                }
-                .keyboardShortcut(.cancelAction)
-                .buttonStyle(.mcleanAction)
-
                 Button {
                     if let firstHighRisk = selectedItems.first(where: { $0.risk == .high }) {
                         manager.reveal(firstHighRisk)
