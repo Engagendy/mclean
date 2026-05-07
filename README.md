@@ -78,6 +78,7 @@ MClean can scan normal user folders without Full Disk Access. macOS blocks some 
 - Search and advanced filters for size, modified date, risk, protection, source, and path.
 - Browser cache scanning for Safari, Chrome, Edge, and Firefox with profile warnings.
 - Duplicate review with grouped identical files and keep-helper selection actions.
+- Opt-in scheduled scans with macOS notification summaries and manual-only cleanup.
 - Never-delete protection for sensitive macOS and user-library locations.
 - File details panel with risk, protection, duplicate, and app-leftover metadata.
 - Trash history with restore support for recently moved items.

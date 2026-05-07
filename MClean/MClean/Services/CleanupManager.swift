@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import UserNotifications
 
 @MainActor
 final class CleanupManager: ObservableObject {
@@ -21,6 +22,24 @@ final class CleanupManager: ObservableObject {
             savePreferences()
         }
     }
+    @Published var scheduledScansEnabled = false {
+        didSet {
+            guard isReadyToPersistPreferences else { return }
+            if scheduledScansEnabled {
+                if lastScheduledScanAt == nil {
+                    lastScheduledScanAt = Date()
+                }
+                requestNotificationAuthorization()
+            }
+            savePreferences()
+        }
+    }
+    @Published var scheduledScanIntervalDays = 7 {
+        didSet {
+            guard isReadyToPersistPreferences else { return }
+            savePreferences()
+        }
+    }
     @Published var items: [CleanupItem] = []
     @Published var selectedIDs = Set<CleanupItem.ID>()
     @Published var summary = ScanSummary()
@@ -35,7 +54,10 @@ final class CleanupManager: ObservableObject {
 
     private let scanner = FileScanner()
     private var lastScannedAt: Date?
+    private var lastScheduledScanAt: Date?
     private var scanTask: Task<Void, Never>?
+    private var scheduleTimer: Timer?
+    private var scheduledScanInProgress = false
     private var skippedScanPhases = Set<ScanPhase>()
     private var isReadyToPersistPreferences = false
 
@@ -90,11 +112,21 @@ final class CleanupManager: ObservableObject {
         stageEntries.filter { $0.existsInStage && $0.isStale(reminderAgeDays: stageReminderAgeDays) }
     }
 
+    var nextScheduledScanDescription: String {
+        guard scheduledScansEnabled else { return "Scheduled scans are off." }
+        let baseDate = lastScheduledScanAt ?? Date()
+        let nextDate = Calendar.current.date(byAdding: .day, value: scheduledScanIntervalDays, to: baseDate) ?? baseDate
+        return "Next scheduled scan \(Self.scanDateFormatter.string(from: nextDate))."
+    }
+
     init() {
         let preferences = ScanResultsStore.loadPreferences()
         options = preferences.options
         scanMode = preferences.scanMode
         stageReminderAgeDays = preferences.stageReminderAgeDays
+        scheduledScansEnabled = preferences.scheduledScansEnabled
+        scheduledScanIntervalDays = preferences.scheduledScanIntervalDays
+        lastScheduledScanAt = preferences.lastScheduledScanAt
         if let stored = ScanResultsStore.load() {
             items = stored.items
             summary = stored.summary
@@ -106,10 +138,12 @@ final class CleanupManager: ObservableObject {
         stageEntries = ScanResultsStore.loadStageEntries()
         refreshDiskSpace()
         isReadyToPersistPreferences = true
+        configureScheduleTimer()
     }
 
-    func scan() {
+    func scan(isScheduled: Bool = false) {
         guard scanTask == nil else { return }
+        scheduledScanInProgress = isScheduled
         selectedIDs.removeAll()
         lastDeletionMessage = nil
         items.removeAll()
@@ -152,6 +186,7 @@ final class CleanupManager: ObservableObject {
                 self.scanTask = nil
                 self.state = .cancelled
                 self.scanProgress = ScanProgress()
+                self.scheduledScanInProgress = false
                 return
             }
 
@@ -164,6 +199,12 @@ final class CleanupManager: ObservableObject {
             scanTask = nil
             scanProgress = ScanProgress()
             state = .finished
+            if scheduledScanInProgress {
+                lastScheduledScanAt = Date()
+                savePreferences()
+                sendScheduledScanNotification()
+                scheduledScanInProgress = false
+            }
         }
     }
 
@@ -175,6 +216,11 @@ final class CleanupManager: ObservableObject {
         guard let phase = scanProgress.phase, isScanning else { return }
         skippedScanPhases.insert(phase)
         state = .scanning("Skipping \(phase.rawValue)")
+    }
+
+    func runScheduledScanNow() {
+        guard !isScanning else { return }
+        scan(isScheduled: true)
     }
 
     var isScanning: Bool {
@@ -589,8 +635,48 @@ final class CleanupManager: ObservableObject {
         ScanResultsStore.savePreferences(CleanupPreferences(
             scanMode: scanMode,
             options: options,
-            stageReminderAgeDays: stageReminderAgeDays
+            stageReminderAgeDays: stageReminderAgeDays,
+            scheduledScansEnabled: scheduledScansEnabled,
+            scheduledScanIntervalDays: scheduledScanIntervalDays,
+            lastScheduledScanAt: lastScheduledScanAt
         ))
+    }
+
+    private func configureScheduleTimer() {
+        scheduleTimer?.invalidate()
+        scheduleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.runScheduledScanIfDue()
+            }
+        }
+    }
+
+    private func runScheduledScanIfDue() {
+        guard scheduledScansEnabled, !isScanning else { return }
+        guard let lastScheduledScanAt else {
+            self.lastScheduledScanAt = Date()
+            savePreferences()
+            return
+        }
+
+        let nextDate = Calendar.current.date(byAdding: .day, value: scheduledScanIntervalDays, to: lastScheduledScanAt) ?? lastScheduledScanAt
+        guard Date() >= nextDate else { return }
+        scan(isScheduled: true)
+    }
+
+    private func requestNotificationAuthorization() {
+        Task {
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+        }
+    }
+
+    private func sendScheduledScanNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "MClean scheduled scan complete"
+        content.body = "\(items.count) findings, \(ByteCount.string(summary.reclaimableBytes)) potential cleanup. Review is manual."
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "mclean.scheduled-scan.\(UUID().uuidString)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
     }
 
     private func normalizedPath(_ path: String) -> String {

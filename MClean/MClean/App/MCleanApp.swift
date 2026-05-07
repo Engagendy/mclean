@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 
 @main
 struct MCleanApp: App {
@@ -52,6 +53,11 @@ struct SettingsView: View {
             stageSettings
                 .tabItem {
                     Label("Stage", systemImage: "tray.full")
+                }
+
+            scheduleSettings
+                .tabItem {
+                    Label("Schedule", systemImage: "calendar.badge.clock")
                 }
         }
         .padding(20)
@@ -171,6 +177,33 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
+    private var scheduleSettings: some View {
+        Form {
+            Section("Scheduled Scans") {
+                Toggle("Run scheduled scans", isOn: $manager.scheduledScansEnabled)
+                Stepper(
+                    "Every \(manager.scheduledScanIntervalDays) day\(manager.scheduledScanIntervalDays == 1 ? "" : "s")",
+                    value: $manager.scheduledScanIntervalDays,
+                    in: 1...30,
+                    step: 1
+                )
+                Text(manager.nextScheduledScanDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("Scheduled scans only report findings. Cleanup stays manual.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    manager.runScheduledScanNow()
+                } label: {
+                    Label("Run Scheduled Scan Now", systemImage: "play.circle")
+                }
+                .disabled(manager.isScanning)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
     private func chooseExclusionFolder() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -204,8 +237,9 @@ struct SettingsView: View {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UNUserNotificationCenter.current().delegate = self
         NSWindow.allowsAutomaticWindowTabbing = true
         MCleanWindowState.clearSavedLayout()
 
@@ -213,6 +247,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            let icon = NSImage(contentsOf: iconURL) {
             NSApplication.shared.applicationIconImage = icon
         }
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        await NSApplication.shared.activate(ignoringOtherApps: true)
     }
 }
 

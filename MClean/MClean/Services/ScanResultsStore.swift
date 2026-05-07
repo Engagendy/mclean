@@ -108,19 +108,35 @@ struct CleanupPreferences: Codable, Equatable {
     var scanMode: ScanMode = .quick
     var options = ScanOptions()
     var stageReminderAgeDays = 7
+    var scheduledScansEnabled = false
+    var scheduledScanIntervalDays = 7
+    var lastScheduledScanAt: Date?
 
     private enum CodingKeys: String, CodingKey {
         case scanMode
         case options
         case stageReminderAgeDays
+        case scheduledScansEnabled
+        case scheduledScanIntervalDays
+        case lastScheduledScanAt
     }
 
     init() {}
 
-    init(scanMode: ScanMode = .quick, options: ScanOptions = ScanOptions(), stageReminderAgeDays: Int = 7) {
+    init(
+        scanMode: ScanMode = .quick,
+        options: ScanOptions = ScanOptions(),
+        stageReminderAgeDays: Int = 7,
+        scheduledScansEnabled: Bool = false,
+        scheduledScanIntervalDays: Int = 7,
+        lastScheduledScanAt: Date? = nil
+    ) {
         self.scanMode = scanMode
         self.options = options
         self.stageReminderAgeDays = stageReminderAgeDays
+        self.scheduledScansEnabled = scheduledScansEnabled
+        self.scheduledScanIntervalDays = scheduledScanIntervalDays
+        self.lastScheduledScanAt = lastScheduledScanAt
     }
 
     init(from decoder: Decoder) throws {
@@ -128,5 +144,8 @@ struct CleanupPreferences: Codable, Equatable {
         scanMode = try container.decodeIfPresent(ScanMode.self, forKey: .scanMode) ?? .quick
         options = try container.decodeIfPresent(ScanOptions.self, forKey: .options) ?? ScanOptions()
         stageReminderAgeDays = try container.decodeIfPresent(Int.self, forKey: .stageReminderAgeDays) ?? 7
+        scheduledScansEnabled = try container.decodeIfPresent(Bool.self, forKey: .scheduledScansEnabled) ?? false
+        scheduledScanIntervalDays = try container.decodeIfPresent(Int.self, forKey: .scheduledScanIntervalDays) ?? 7
+        lastScheduledScanAt = try container.decodeIfPresent(Date.self, forKey: .lastScheduledScanAt)
     }
 }

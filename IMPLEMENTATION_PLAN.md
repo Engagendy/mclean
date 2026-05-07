@@ -200,14 +200,14 @@ Acceptance criteria:
 
 ### Scheduled Scans
 
-Status: `[ ]`
+Status: `[x]`
 
 Implementation tasks:
 
-- `[ ]` Add manual opt-in scheduled scan settings.
-- `[ ]` Use macOS notifications for scan summaries.
-- `[ ]` Keep cleanup manual: scheduled scans never delete, stage, or trash files.
-- `[ ]` Add schedule pause and disable controls.
+- `[x]` Add manual opt-in scheduled scan settings.
+- `[x]` Use macOS notifications for scan summaries.
+- `[x]` Keep cleanup manual: scheduled scans never delete, stage, or trash files.
+- `[x]` Add schedule pause and disable controls.
 
 Acceptance criteria:
 
