@@ -190,14 +190,14 @@ struct FindingsFilterBar: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
+            WrappingHStack(spacing: 10, lineSpacing: 8) {
                 Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
                     .font(.headline)
 
                 TextField("Search name, path, or reason", text: $filter.searchText)
                     .textFieldStyle(.roundedBorder)
-                    .frame(minWidth: 220)
+                    .frame(width: 260)
 
                 TextField("Path contains", text: $filter.pathText)
                     .textFieldStyle(.roundedBorder)
@@ -206,14 +206,13 @@ struct FindingsFilterBar: View {
                 Stepper("Min \(filter.minimumSizeMB) MB", value: $filter.minimumSizeMB, in: 0...10_000, step: 100)
                     .frame(width: 150)
 
-                Spacer()
-
                 Text("\(visibleItems.count) of \(totalCount)")
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 10) {
+            WrappingHStack(spacing: 10, lineSpacing: 8) {
                 Picker("Risk", selection: $filter.risk) {
                     Text("Any Risk").tag(Optional<CleanupRisk>.none)
                     ForEach(CleanupRisk.allCases, id: \.self) { risk in
@@ -253,8 +252,6 @@ struct FindingsFilterBar: View {
                 }
                 .frame(width: 190)
 
-                Spacer()
-
                 Text("\(ByteCount.string(visibleBytes)) visible")
                     .foregroundStyle(.secondary)
 
@@ -268,6 +265,8 @@ struct FindingsFilterBar: View {
                 }
                 .disabled(!filter.isActive)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .controlSize(.small)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
@@ -281,15 +280,14 @@ struct DashboardDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 14) {
+            WrappingHStack(spacing: 12, lineSpacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Dashboard")
                         .font(.title2.weight(.semibold))
                     Text(subtitle)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Spacer()
 
                 Button {
                     if manager.isScanning {
@@ -336,6 +334,7 @@ struct DashboardDetailView: View {
                 .menuStyle(.borderlessButton)
                 .help("More Actions")
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
 
             Divider()

@@ -85,13 +85,11 @@ struct MoveToTrashPreviewView: View {
 
             Divider()
 
-            HStack {
+            WrappingHStack(spacing: 10, lineSpacing: 8) {
                 Button("Cancel") {
                     isPresented = false
                 }
                 .keyboardShortcut(.cancelAction)
-
-                Spacer()
 
                 Button {
                     if let firstHighRisk = selectedItems.first(where: { $0.risk == .high }) {
@@ -111,6 +109,7 @@ struct MoveToTrashPreviewView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(selectedItems.allSatisfy { !$0.canMoveToTrash })
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
         }
         .frame(minWidth: 760, minHeight: 520)

@@ -11,108 +11,114 @@ struct ToolbarView: View {
     @State private var showingAppLeftovers = false
 
     var body: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Cleanup Review")
-                    .font(.title2.weight(.semibold))
-                Text(subtitle)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button {
-                if manager.isScanning {
-                    manager.cancelScan()
-                } else {
-                    manager.scan()
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Cleanup Review")
+                        .font(.title2.weight(.semibold))
+                    Text(subtitle)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            } label: {
-                if isScanning {
-                    Label("Cancel", systemImage: "xmark.circle")
-                } else {
-                    Label("Scan", systemImage: "arrow.clockwise")
-                }
-            }
-            .keyboardShortcut("r", modifiers: [.command])
 
-            Button {
-                manager.selectRecommended()
-            } label: {
-                Label("Recommended", systemImage: "checklist.checked")
-            }
-            .disabled(manager.items.isEmpty || isScanning)
+                Spacer(minLength: 12)
 
-            Button {
-                manager.select(visibleItems)
-            } label: {
-                Label("Select Visible", systemImage: "checkmark.square")
-            }
-            .disabled(visibleItems.isEmpty || isScanning)
-
-            Button {
-                manager.clearSelection()
-            } label: {
-                Label("Clear", systemImage: "xmark.square")
-            }
-            .disabled(manager.selectedIDs.isEmpty || isScanning)
-
-            Button {
-                manager.removeMissingItems()
-            } label: {
-                Label("Remove Missing", systemImage: "minus.circle")
-            }
-            .disabled(manager.missingItemCount == 0 || isScanning)
-
-            SettingsLink {
-                Label("Settings", systemImage: "gearshape")
-            }
-
-            Button {
-                showingDuplicateReview = true
-            } label: {
-                Label("Duplicates", systemImage: "doc.on.doc")
-            }
-            .disabled(manager.duplicateGroups.isEmpty || isScanning)
-
-            Button {
-                showingAppLeftovers = true
-            } label: {
-                Label("Leftovers", systemImage: "app.badge")
-            }
-            .disabled(manager.appLeftoverGroups.isEmpty || isScanning)
-
-            Button {
-                showingTrashHistory = true
-            } label: {
-                Label("History", systemImage: "clock.arrow.circlepath")
-            }
-            .disabled(manager.trashHistory.isEmpty)
-
-            Button {
-                showingStage = true
-            } label: {
-                Label(stageButtonTitle, systemImage: manager.staleStageEntries.isEmpty ? "tray.full" : "exclamationmark.triangle")
-            }
-            .disabled(manager.stageEntries.isEmpty)
-
-            Button {
-                manager.moveSelectedToStage()
-            } label: {
-                Label("Move to Stage", systemImage: "tray.and.arrow.down")
-            }
-            .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
-
-            if manager.showDirectTrashActions {
                 Button {
-                    showingDeleteAlert = true
+                    if manager.isScanning {
+                        manager.cancelScan()
+                    } else {
+                        manager.scan()
+                    }
                 } label: {
-                    Label("Move to Trash", systemImage: "trash")
+                    if isScanning {
+                        Label("Cancel", systemImage: "xmark.circle")
+                    } else {
+                        Label("Scan", systemImage: "arrow.clockwise")
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.red)
-                .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
+                .keyboardShortcut("r", modifiers: [.command])
             }
+
+            WrappingHStack(spacing: 8, lineSpacing: 8) {
+                Button {
+                    manager.selectRecommended()
+                } label: {
+                    Label("Recommended", systemImage: "checklist.checked")
+                }
+                .disabled(manager.items.isEmpty || isScanning)
+
+                Button {
+                    manager.select(visibleItems)
+                } label: {
+                    Label("Select Visible", systemImage: "checkmark.square")
+                }
+                .disabled(visibleItems.isEmpty || isScanning)
+
+                Button {
+                    manager.clearSelection()
+                } label: {
+                    Label("Clear", systemImage: "xmark.square")
+                }
+                .disabled(manager.selectedIDs.isEmpty || isScanning)
+
+                Button {
+                    manager.removeMissingItems()
+                } label: {
+                    Label("Remove Missing", systemImage: "minus.circle")
+                }
+                .disabled(manager.missingItemCount == 0 || isScanning)
+
+                SettingsLink {
+                    Label("Settings", systemImage: "gearshape")
+                }
+
+                Button {
+                    showingDuplicateReview = true
+                } label: {
+                    Label("Duplicates", systemImage: "doc.on.doc")
+                }
+                .disabled(manager.duplicateGroups.isEmpty || isScanning)
+
+                Button {
+                    showingAppLeftovers = true
+                } label: {
+                    Label("Leftovers", systemImage: "app.badge")
+                }
+                .disabled(manager.appLeftoverGroups.isEmpty || isScanning)
+
+                Button {
+                    showingTrashHistory = true
+                } label: {
+                    Label("History", systemImage: "clock.arrow.circlepath")
+                }
+                .disabled(manager.trashHistory.isEmpty)
+
+                Button {
+                    showingStage = true
+                } label: {
+                    Label(stageButtonTitle, systemImage: manager.staleStageEntries.isEmpty ? "tray.full" : "exclamationmark.triangle")
+                }
+                .disabled(manager.stageEntries.isEmpty)
+
+                Button {
+                    manager.moveSelectedToStage()
+                } label: {
+                    Label("Move to Stage", systemImage: "tray.and.arrow.down")
+                }
+                .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
+
+                if manager.showDirectTrashActions {
+                    Button {
+                        showingDeleteAlert = true
+                    } label: {
+                        Label("Move to Trash", systemImage: "trash")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
+                }
+            }
+            .controlSize(.small)
         }
         .padding(18)
         .sheet(isPresented: $showingTrashHistory) {
@@ -197,10 +203,9 @@ struct AppLeftoverReviewView: View {
 
             Divider()
 
-            HStack {
+            WrappingHStack(spacing: 10, lineSpacing: 8) {
                 Text("\(manager.selectedItems.filter { $0.category == .appLeftovers && $0.canMoveToTrash }.count) selected")
                     .foregroundStyle(.secondary)
-                Spacer()
                 if manager.showDirectTrashActions {
                     Button {
                         isPresented = false
@@ -218,6 +223,7 @@ struct AppLeftoverReviewView: View {
                 }
                 .disabled(!manager.selectedItems.contains { $0.category == .appLeftovers && $0.canMoveToTrash })
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
         }
         .frame(minWidth: 760, minHeight: 560)
@@ -314,10 +320,9 @@ struct DuplicateReviewView: View {
 
             Divider()
 
-            HStack {
+            WrappingHStack(spacing: 10, lineSpacing: 8) {
                 Text("\(selectedDuplicateCount) selected, \(ByteCount.string(selectedDuplicateBytes))")
                     .foregroundStyle(.secondary)
-                Spacer()
                 Button("Close") {
                     isPresented = false
                 }
@@ -341,6 +346,7 @@ struct DuplicateReviewView: View {
                     .disabled(selectedDuplicateCount == 0)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
         }
         .frame(minWidth: 920, minHeight: 620)
@@ -358,7 +364,7 @@ private struct DuplicateGroupSection: View {
     var body: some View {
         Section {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
+                WrappingHStack(spacing: 10, lineSpacing: 8) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(group.name)
                             .font(.headline)
@@ -367,7 +373,6 @@ private struct DuplicateGroupSection: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
                     Menu {
                         ForEach(DuplicateKeepStrategy.allCases) { strategy in
                             Button {
@@ -386,6 +391,7 @@ private struct DuplicateGroupSection: View {
                         Label("Select Duplicates", systemImage: "checkmark.circle")
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 ForEach(group.items) { item in
                     DuplicateItemRow(item: item)
@@ -474,14 +480,14 @@ struct StageView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            WrappingHStack(spacing: 10, lineSpacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Stage")
                         .font(.title2.weight(.semibold))
                     Text(stageSubtitle)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer()
                 if !manager.staleStageEntries.isEmpty {
                     Button {
                         confirmingMoveStaleToTrash = true
@@ -495,6 +501,7 @@ struct StageView: View {
                     Label("Reveal Stage", systemImage: "folder")
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
 
             Divider()
@@ -565,7 +572,7 @@ private struct StageRow: View {
     @Binding var pendingPermanentDelete: StageEntry?
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: entry.existsInStage ? entry.category.symbolName : "questionmark.folder")
                 .foregroundStyle(entry.existsInStage ? .blue : .secondary)
 
@@ -589,32 +596,8 @@ private struct StageRow: View {
 
             Spacer()
 
-            if entry.existsInStage {
-                Button {
-                    manager.restoreFromStage(entry)
-                } label: {
-                    Label("Restore", systemImage: "arrow.uturn.backward")
-                }
-                .disabled(!entry.canRestore)
-
-                Button {
-                    manager.moveStagedToTrash(entry)
-                } label: {
-                    Label("Trash", systemImage: "trash")
-                }
-
-                Button(role: .destructive) {
-                    pendingPermanentDelete = entry
-                } label: {
-                    Label("Delete", systemImage: "trash.slash")
-                }
-            } else {
-                Button {
-                    manager.removeMissingStageEntry(entry)
-                } label: {
-                    Label("Remove", systemImage: "minus.circle")
-                }
-            }
+            stageActions
+                .controlSize(.small)
         }
         .padding(.vertical, 4)
         .contextMenu {
@@ -648,6 +631,39 @@ private struct StageRow: View {
     private func copyPath(_ path: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(path, forType: .string)
+    }
+
+    @ViewBuilder
+    private var stageActions: some View {
+        if entry.existsInStage {
+            WrappingHStack(spacing: 6, lineSpacing: 6) {
+                Button {
+                    manager.restoreFromStage(entry)
+                } label: {
+                    Label("Restore", systemImage: "arrow.uturn.backward")
+                }
+                .disabled(!entry.canRestore)
+
+                Button {
+                    manager.moveStagedToTrash(entry)
+                } label: {
+                    Label("Trash", systemImage: "trash")
+                }
+
+                Button(role: .destructive) {
+                    pendingPermanentDelete = entry
+                } label: {
+                    Label("Delete", systemImage: "trash.slash")
+                }
+            }
+            .frame(maxWidth: 260, alignment: .trailing)
+        } else {
+            Button {
+                manager.removeMissingStageEntry(entry)
+            } label: {
+                Label("Remove", systemImage: "minus.circle")
+            }
+        }
     }
 }
 
@@ -725,4 +741,62 @@ private extension StageView {
         formatter.timeStyle = .short
         return formatter
     }()
+}
+
+struct WrappingHStack: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var measuredWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + spacing + size.width > maxWidth {
+                measuredWidth = max(measuredWidth, x)
+                x = 0
+                y += rowHeight + lineSpacing
+                rowHeight = 0
+            }
+
+            if x > 0 {
+                x += spacing
+            }
+            x += size.width
+            rowHeight = max(rowHeight, size.height)
+        }
+
+        measuredWidth = max(measuredWidth, x)
+        return CGSize(width: min(measuredWidth, maxWidth), height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + spacing + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + lineSpacing
+                rowHeight = 0
+            }
+
+            if x > bounds.minX {
+                x += spacing
+            }
+
+            subview.place(
+                at: CGPoint(x: x, y: y),
+                proposal: ProposedViewSize(size)
+            )
+            x += size.width
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
 }

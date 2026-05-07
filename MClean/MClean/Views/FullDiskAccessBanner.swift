@@ -20,19 +20,20 @@ struct FullDiskAccessBanner: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer(minLength: 12)
+                WrappingHStack(spacing: 8, lineSpacing: 8) {
+                    Button {
+                        manager.openFullDiskAccessSettings()
+                    } label: {
+                        Label("Open Settings", systemImage: "gear")
+                    }
 
-                Button {
-                    manager.openFullDiskAccessSettings()
-                } label: {
-                    Label("Open Settings", systemImage: "gear")
+                    Button {
+                        manager.refreshFullDiskAccessStatus()
+                    } label: {
+                        Label("Recheck", systemImage: "arrow.clockwise")
+                    }
                 }
-
-                Button {
-                    manager.refreshFullDiskAccessStatus()
-                } label: {
-                    Label("Recheck", systemImage: "arrow.clockwise")
-                }
+                .controlSize(.small)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
