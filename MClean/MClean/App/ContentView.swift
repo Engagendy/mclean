@@ -281,7 +281,7 @@ struct DashboardDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            WrappingHStack(spacing: 12, lineSpacing: 8) {
+            HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Dashboard")
                         .font(.title2.weight(.semibold))
@@ -290,54 +290,57 @@ struct DashboardDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Button {
-                    if manager.isScanning {
-                        manager.cancelScan()
-                    } else {
-                        manager.scan()
-                    }
-                } label: {
-                    if manager.isScanning {
-                        Label("Cancel", systemImage: "xmark.circle")
-                    } else {
-                        Label("Scan", systemImage: "arrow.clockwise")
-                    }
-                }
-                .keyboardShortcut("r", modifiers: [.command])
-                .buttonStyle(.mcleanAccentAction)
+                Spacer(minLength: 16)
 
-                Menu {
-                    SettingsLink {
-                        Label("Settings", systemImage: "gearshape")
-                    }
-
-                    Divider()
-
+                HStack(spacing: 8) {
                     Button {
-                        manager.selectRecommended()
-                        if manager.showDirectTrashActions {
-                            showingDeleteAlert = true
+                        if manager.isScanning {
+                            manager.cancelScan()
                         } else {
-                            manager.moveSelectedToStage()
+                            manager.scan()
                         }
                     } label: {
-                        Label(manager.showDirectTrashActions ? "Clean Recommended" : "Stage Recommended", systemImage: "checklist.checked")
+                        if manager.isScanning {
+                            Label("Cancel", systemImage: "xmark.circle")
+                        } else {
+                            Label("Scan", systemImage: "arrow.clockwise")
+                        }
                     }
-                    .disabled(manager.items.isEmpty || manager.isScanning)
+                    .keyboardShortcut("r", modifiers: [.command])
+                    .buttonStyle(.mcleanAccentAction)
 
-                    Button {
-                        manager.refreshDiskSpace()
+                    Menu {
+                        SettingsLink {
+                            Label("Settings", systemImage: "gearshape")
+                        }
+
+                        Divider()
+
+                        Button {
+                            manager.selectRecommended()
+                            if manager.showDirectTrashActions {
+                                showingDeleteAlert = true
+                            } else {
+                                manager.moveSelectedToStage()
+                            }
+                        } label: {
+                            Label(manager.showDirectTrashActions ? "Clean Recommended" : "Stage Recommended", systemImage: "checklist.checked")
+                        }
+                        .disabled(manager.items.isEmpty || manager.isScanning)
+
+                        Button {
+                            manager.refreshDiskSpace()
+                        } label: {
+                            Label("Refresh Disk Status", systemImage: "arrow.clockwise.circle")
+                        }
                     } label: {
-                        Label("Refresh Disk Status", systemImage: "arrow.clockwise.circle")
+                        Label("More", systemImage: "ellipsis.circle")
                     }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                    .buttonStyle(.mcleanAction)
+                    .help("More Actions")
                 }
-                .menuStyle(.borderlessButton)
-                .buttonStyle(.mcleanAction)
-                .help("More Actions")
+                .controlSize(.small)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
 
             Divider()
