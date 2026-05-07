@@ -162,14 +162,14 @@ Acceptance criteria:
 
 ### File Preview
 
-Status: `[ ]`
+Status: `[x]`
 
 Implementation tasks:
 
-- `[ ]` Add preview panel for selected or detail item.
-- `[ ]` Support images, text, PDFs, and video metadata.
-- `[ ]` Use Quick Look where appropriate.
-- `[ ]` Fall back to metadata-only preview for unsupported files.
+- `[x]` Add preview panel for selected or detail item.
+- `[x]` Support images, text, PDFs, and video metadata.
+- `[x]` Use native preview frameworks where appropriate.
+- `[x]` Fall back to metadata-only preview for unsupported files.
 
 Acceptance criteria:
 

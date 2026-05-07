@@ -1,5 +1,8 @@
 import AppKit
+import AVFoundation
+import PDFKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ResultsTable: View {
     @EnvironmentObject private var manager: CleanupManager
@@ -233,6 +236,13 @@ struct FileDetailsView: View {
 
             Divider()
 
+            FilePreviewPane(item: item)
+                .frame(height: 190)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+
+            Divider()
+
             Form {
                 LabeledContent("Size", value: ByteCount.string(item.size))
                 LabeledContent("Category", value: item.category.rawValue)
@@ -305,6 +315,150 @@ struct FileDetailsView: View {
         formatter.timeStyle = .short
         return formatter
     }()
+}
+
+private struct FilePreviewPane: View {
+    let item: CleanupItem
+
+    var body: some View {
+        Group {
+            if !item.existsOnDisk {
+                previewUnavailable("File is missing")
+            } else if item.isDirectory {
+                metadataPreview(systemImage: "folder", title: "Folder", subtitle: item.path)
+            } else if itemType?.conforms(to: .image) == true, let image = NSImage(contentsOf: item.url) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.quaternary.opacity(0.35))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else if itemType?.conforms(to: .pdf) == true, let document = PDFDocument(url: item.url) {
+                PDFPreview(document: document)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else if isTextPreviewable, let text = previewText {
+                ScrollView {
+                    Text(text)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                }
+                .background(.quaternary.opacity(0.35))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else if itemType?.conforms(to: .movie) == true || itemType?.conforms(to: .audiovisualContent) == true {
+                VideoMetadataPreview(item: item)
+            } else {
+                metadataPreview(systemImage: "doc", title: itemType?.localizedDescription ?? "File", subtitle: item.path)
+            }
+        }
+    }
+
+    private var itemType: UTType? {
+        UTType(filenameExtension: item.url.pathExtension)
+    }
+
+    private var isTextPreviewable: Bool {
+        guard let itemType else { return false }
+        return itemType.conforms(to: .plainText) ||
+            itemType.conforms(to: .sourceCode) ||
+            itemType.conforms(to: .json) ||
+            itemType.conforms(to: .xml)
+    }
+
+    private var previewText: String? {
+        guard let data = try? Data(contentsOf: item.url, options: [.mappedIfSafe]) else { return nil }
+        let limited = data.prefix(64 * 1_024)
+        return String(data: Data(limited), encoding: .utf8)
+    }
+
+    private func previewUnavailable(_ title: String) -> some View {
+        metadataPreview(systemImage: "exclamationmark.triangle", title: title, subtitle: item.path)
+    }
+
+    private func metadataPreview(systemImage: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+                .frame(width: 46)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                Text(subtitle)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.quaternary.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+}
+
+private struct VideoMetadataPreview: View {
+    let item: CleanupItem
+    @State private var durationText = "Loading duration"
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "film")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+                .frame(width: 46)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Video")
+                    .font(.headline)
+                Text("\(durationText) - \(ByteCount.string(item.size))")
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.quaternary.opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .task(id: item.id) {
+            let asset = AVURLAsset(url: item.url)
+            if let duration = try? await asset.load(.duration) {
+                let seconds = CMTimeGetSeconds(duration)
+                durationText = seconds.isFinite
+                    ? Self.durationFormatter.string(from: seconds) ?? "\(Int(seconds))s"
+                    : "Unknown duration"
+            } else {
+                durationText = "Unknown duration"
+            }
+        }
+    }
+
+    private static let durationFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+}
+
+private struct PDFPreview: NSViewRepresentable {
+    let document: PDFDocument
+
+    func makeNSView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.backgroundColor = .clear
+        view.document = document
+        return view
+    }
+
+    func updateNSView(_ nsView: PDFView, context: Context) {
+        nsView.document = document
+    }
 }
 
 struct RiskBadge: View {
