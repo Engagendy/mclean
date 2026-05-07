@@ -80,6 +80,28 @@ enum CleanupProtection: String, CaseIterable, Codable {
     }
 }
 
+enum CleanupSourceKind: String, CaseIterable, Identifiable, Codable {
+    case general = "General"
+    case browser = "Browser"
+    case developer = "Developer"
+    case appLeftover = "App Leftover"
+    case duplicate = "Duplicate"
+    case system = "System"
+
+    var id: String { rawValue }
+
+    var symbolName: String {
+        switch self {
+        case .general: return "folder"
+        case .browser: return "globe"
+        case .developer: return "hammer"
+        case .appLeftover: return "app.badge"
+        case .duplicate: return "doc.on.doc"
+        case .system: return "lock.shield"
+        }
+    }
+}
+
 struct CleanupItem: Identifiable, Hashable, Codable {
     var id = UUID()
     let url: URL
@@ -94,9 +116,15 @@ struct CleanupItem: Identifiable, Hashable, Codable {
     var duplicateGroupID: String?
     var duplicateCount: Int?
     var relatedBundleID: String?
+    var sourceKind: CleanupSourceKind?
+    var sourceName: String?
+    var sourceWarning: String?
 
     var path: String { url.path }
     var existsOnDisk: Bool { FileManager.default.fileExists(atPath: path) }
+    var resolvedSourceKind: CleanupSourceKind {
+        sourceKind ?? Self.defaultSourceKind(for: category)
+    }
     var canMoveToTrash: Bool { existsOnDisk && protection != .neverDelete }
     var isRecommendedForCleanup: Bool {
         canMoveToTrash && risk != .high && protection == .normal && category != .appSupport && category != .systemStorage
@@ -115,7 +143,10 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         protection: CleanupProtection = .normal,
         duplicateGroupID: String? = nil,
         duplicateCount: Int? = nil,
-        relatedBundleID: String? = nil
+        relatedBundleID: String? = nil,
+        sourceKind: CleanupSourceKind? = nil,
+        sourceName: String? = nil,
+        sourceWarning: String? = nil
     ) {
         self.id = id
         self.url = url
@@ -130,6 +161,9 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         self.duplicateGroupID = duplicateGroupID
         self.duplicateCount = duplicateCount
         self.relatedBundleID = relatedBundleID
+        self.sourceKind = sourceKind
+        self.sourceName = sourceName
+        self.sourceWarning = sourceWarning
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -146,6 +180,9 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         case duplicateGroupID
         case duplicateCount
         case relatedBundleID
+        case sourceKind
+        case sourceName
+        case sourceWarning
     }
 
     init(from decoder: Decoder) throws {
@@ -163,6 +200,24 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         duplicateGroupID = try container.decodeIfPresent(String.self, forKey: .duplicateGroupID)
         duplicateCount = try container.decodeIfPresent(Int.self, forKey: .duplicateCount)
         relatedBundleID = try container.decodeIfPresent(String.self, forKey: .relatedBundleID)
+        sourceKind = try container.decodeIfPresent(CleanupSourceKind.self, forKey: .sourceKind)
+        sourceName = try container.decodeIfPresent(String.self, forKey: .sourceName)
+        sourceWarning = try container.decodeIfPresent(String.self, forKey: .sourceWarning)
+    }
+
+    static func defaultSourceKind(for category: CleanupCategory) -> CleanupSourceKind {
+        switch category {
+        case .developerData:
+            return .developer
+        case .appLeftovers:
+            return .appLeftover
+        case .duplicates:
+            return .duplicate
+        case .systemStorage:
+            return .system
+        default:
+            return .general
+        }
     }
 }
 
@@ -238,6 +293,8 @@ enum ScanState: Equatable {
 enum ScanMode: String, CaseIterable, Identifiable, Codable {
     case quick = "Quick"
     case deep = "Deep"
+    case developer = "Developer"
+    case downloadsReview = "Downloads Review"
     case custom = "Custom"
 
     var id: String { rawValue }
@@ -248,8 +305,27 @@ enum ScanMode: String, CaseIterable, Identifiable, Codable {
             return "Fast scan for common cleanup locations."
         case .deep:
             return "Broader scan, including app support and protected storage."
+        case .developer:
+            return "Focused scan for build products, simulators, package caches, and tool data."
+        case .downloadsReview:
+            return "Focused review of downloaded, old, large, and duplicate files."
         case .custom:
             return "Use the selected scan options."
+        }
+    }
+
+    var includedSummary: String {
+        switch self {
+        case .quick:
+            return "Caches, Downloads, Temporary, Large Files, Duplicates, Developer Data, App Leftovers"
+        case .deep:
+            return "Quick scan plus Old Files, Browser Caches, App Support, and System Storage"
+        case .developer:
+            return "Developer Data only"
+        case .downloadsReview:
+            return "Downloads, Large Files, Duplicates, and Old Files"
+        case .custom:
+            return "Uses the category toggles currently selected"
         }
     }
 }

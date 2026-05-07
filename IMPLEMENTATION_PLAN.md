@@ -19,13 +19,13 @@ Current foundation:
 
 Implementation tasks:
 
-- `[ ]` Expand installed-app inventory to include `/System/Applications`, Setapp-style app locations, and nested app bundles.
+- `[~]` Expand installed-app inventory to include `/System/Applications`, Setapp-style app locations, and nested app bundles.
 - `[ ]` Detect package receipts from `/Library/Receipts`, `/private/var/db/receipts`, and user-visible install metadata where readable.
-- `[ ]` Detect launch agents and launch daemons related to removed apps.
-- `[ ]` Detect preferences in `~/Library/Preferences`.
-- `[ ]` Detect logs in `~/Library/Logs` and related diagnostic locations.
+- `[~]` Detect launch agents and launch daemons related to removed apps.
+- `[x]` Detect preferences in `~/Library/Preferences`.
+- `[~]` Detect logs in `~/Library/Logs` and related diagnostic locations.
 - `[ ]` Group leftovers by bundle ID in the UI.
-- `[ ]` Add confidence labels for leftovers: exact bundle ID, probable bundle ID, weak name match.
+- `[~]` Add confidence labels for leftovers: exact bundle ID, probable bundle ID, weak name match.
 - `[ ]` Add tests for bundle-ID parsing and installed-app exclusion behavior.
 
 Acceptance criteria:
@@ -37,15 +37,15 @@ Acceptance criteria:
 
 ### Browser Cleanup Modules
 
-Status: `[ ]`
+Status: `[~]`
 
 Implementation tasks:
 
-- `[ ]` Add browser categories or source metadata for Chrome, Edge, Firefox, and Safari.
-- `[ ]` Detect browser cache folders per profile without scanning browsing history content.
-- `[ ]` Add clear profile warnings before selecting browser data.
-- `[ ]` Keep cookies, passwords, bookmarks, history, sessions, and profile databases protected by default.
-- `[ ]` Add browser-specific scan toggles in settings and scan profiles.
+- `[x]` Add browser categories or source metadata for Chrome, Edge, Firefox, and Safari.
+- `[x]` Detect browser cache folders per profile without scanning browsing history content.
+- `[x]` Add clear profile warnings before selecting browser data.
+- `[x]` Keep cookies, passwords, bookmarks, history, sessions, and profile databases protected by default.
+- `[x]` Add browser-specific scan toggles in settings and scan profiles.
 - `[ ]` Add tests for protected browser paths.
 
 Acceptance criteria:
@@ -64,13 +64,13 @@ Current foundation:
 
 Implementation tasks:
 
-- `[ ]` Split developer data into named source types: Xcode, Docker, JavaScript, Python, Rust, Go, Gradle, Maven, Homebrew.
-- `[ ]` Add a Developer scan profile that enables developer cleanup without unrelated categories.
-- `[ ]` Add Xcode-specific coverage for DerivedData, Archives, DeviceSupport, Products, Previews, XCTestDevices, and simulator caches.
-- `[ ]` Add Docker preview for caches, images, volumes, and VM storage without deleting Docker resources blindly.
-- `[ ]` Add npm, pnpm, and yarn cache modules.
+- `[x]` Split developer data into named source types: Xcode, Docker, JavaScript, Python, Rust, Go, Gradle, Maven, Homebrew.
+- `[x]` Add a Developer scan profile that enables developer cleanup without unrelated categories.
+- `[x]` Add Xcode-specific coverage for DerivedData, Archives, DeviceSupport, Products, Previews, XCTestDevices, and simulator caches.
+- `[~]` Add Docker preview for caches, images, volumes, and VM storage without deleting Docker resources blindly.
+- `[x]` Add npm, pnpm, and yarn cache modules.
 - `[ ]` Add Python cache modules for pip, virtualenv, Poetry, Pipenv, pyenv build caches, and common `__pycache__` handling.
-- `[ ]` Add Rust, Go, and Gradle cache modules with source-specific explanations.
+- `[x]` Add Rust, Go, and Gradle cache modules with source-specific explanations.
 - `[ ]` Add source-specific tests for developer roots.
 
 Acceptance criteria:
@@ -115,7 +115,7 @@ Implementation tasks:
 - `[x]` Move scan options into Settings where they persist between app launches.
 - `[x]` Add exclusions management.
 - `[ ]` Add Stage preferences such as reminder age and default action visibility.
-- `[ ]` Add browser and developer module toggles.
+- `[x]` Add browser and developer module toggles.
 
 Acceptance criteria:
 
@@ -132,11 +132,11 @@ Current foundation:
 
 Implementation tasks:
 
-- `[ ]` Add Developer profile.
-- `[ ]` Add Downloads Review profile.
+- `[x]` Add Developer profile.
+- `[x]` Add Downloads Review profile.
 - `[x]` Persist last selected profile.
 - `[ ]` Support user-created custom profiles.
-- `[ ]` Show which categories each profile includes.
+- `[x]` Show which categories each profile includes.
 
 Acceptance criteria:
 
@@ -150,7 +150,7 @@ Status: `[~]`
 Implementation tasks:
 
 - `[x]` Add search field for name and path.
-- `[~]` Add filters for size range, modified date, category, risk, protection, source type, and path contains.
+- `[x]` Add filters for size range, modified date, category, risk, protection, source type, and path contains.
 - `[x]` Add filter chips or a compact filter summary.
 - `[x]` Make selection actions operate only on visible filtered results.
 
@@ -158,7 +158,7 @@ Acceptance criteria:
 
 - Search and filters combine predictably.
 - Result counts and selected bytes reflect the active filter.
-- Source type filtering remains pending until source metadata is added.
+- Source type filtering uses item source metadata where available and category-derived defaults for older results.
 
 ### File Preview
 

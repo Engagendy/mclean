@@ -149,6 +149,7 @@ final class CleanupManager: ObservableObject {
             options.includeOldFiles = false
             options.includeDeveloperData = true
             options.includeAppLeftovers = true
+            options.includeBrowserCaches = false
             options.includeAppSupport = false
             options.includeSystemStorage = false
         case .deep:
@@ -160,8 +161,33 @@ final class CleanupManager: ObservableObject {
             options.includeOldFiles = true
             options.includeDeveloperData = true
             options.includeAppLeftovers = true
+            options.includeBrowserCaches = true
             options.includeAppSupport = true
             options.includeSystemStorage = true
+        case .developer:
+            options.includeCaches = false
+            options.includeDownloads = false
+            options.includeTemporary = false
+            options.includeLargeFiles = false
+            options.includeDuplicates = false
+            options.includeOldFiles = false
+            options.includeDeveloperData = true
+            options.includeAppLeftovers = false
+            options.includeBrowserCaches = false
+            options.includeAppSupport = false
+            options.includeSystemStorage = false
+        case .downloadsReview:
+            options.includeCaches = false
+            options.includeDownloads = true
+            options.includeTemporary = false
+            options.includeLargeFiles = true
+            options.includeDuplicates = true
+            options.includeOldFiles = true
+            options.includeDeveloperData = false
+            options.includeAppLeftovers = false
+            options.includeBrowserCaches = false
+            options.includeAppSupport = false
+            options.includeSystemStorage = false
         case .custom:
             break
         }

@@ -90,6 +90,12 @@ struct ResultsTable: View {
             }
             .width(120)
 
+            TableColumn("Source") { item in
+                Label(item.sourceName ?? item.resolvedSourceKind.rawValue, systemImage: item.resolvedSourceKind.symbolName)
+                    .lineLimit(1)
+            }
+            .width(160)
+
             TableColumn("Status") { item in
                 if item.existsOnDisk {
                     VStack(alignment: .leading, spacing: 2) {
@@ -247,6 +253,15 @@ struct FileDetailsView: View {
                 }
                 if let relatedBundleID = item.relatedBundleID {
                     LabeledContent("Related Bundle ID", value: relatedBundleID)
+                }
+                LabeledContent("Source") {
+                    Label(item.sourceName ?? item.resolvedSourceKind.rawValue, systemImage: item.resolvedSourceKind.symbolName)
+                }
+                if let sourceWarning = item.sourceWarning {
+                    LabeledContent("Source Warning") {
+                        Text(sourceWarning)
+                            .foregroundStyle(.orange)
+                    }
                 }
                 LabeledContent("Safety") {
                     Text(item.protection.explanation)

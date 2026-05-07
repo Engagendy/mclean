@@ -66,6 +66,9 @@ struct SettingsView: View {
                 Text(manager.scanMode.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text(manager.scanMode.includedSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Categories") {
@@ -77,6 +80,7 @@ struct SettingsView: View {
                 Toggle("Old files", isOn: boolOptionBinding(\.includeOldFiles))
                 Toggle("Developer data", isOn: boolOptionBinding(\.includeDeveloperData))
                 Toggle("App leftovers", isOn: boolOptionBinding(\.includeAppLeftovers))
+                Toggle("Browser caches", isOn: boolOptionBinding(\.includeBrowserCaches))
                 Toggle("App support", isOn: boolOptionBinding(\.includeAppSupport))
                 Toggle("System storage", isOn: boolOptionBinding(\.includeSystemStorage))
             }

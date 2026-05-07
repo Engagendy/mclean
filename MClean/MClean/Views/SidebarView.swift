@@ -26,6 +26,9 @@ struct SidebarView: View {
                 Text(manager.scanMode.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text(manager.scanMode.includedSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Views") {
@@ -51,6 +54,7 @@ struct SidebarView: View {
                 Toggle("Old files", isOn: optionBinding(\.includeOldFiles))
                 Toggle("Developer data", isOn: optionBinding(\.includeDeveloperData))
                 Toggle("App leftovers", isOn: optionBinding(\.includeAppLeftovers))
+                Toggle("Browser caches", isOn: optionBinding(\.includeBrowserCaches))
                 Toggle("App support", isOn: optionBinding(\.includeAppSupport))
                 Toggle("System storage", isOn: optionBinding(\.includeSystemStorage))
 

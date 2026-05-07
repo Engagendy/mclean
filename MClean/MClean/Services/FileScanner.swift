@@ -10,12 +10,52 @@ struct ScanOptions: Equatable, Codable {
     var includeOldFiles = true
     var includeDeveloperData = true
     var includeAppLeftovers = true
+    var includeBrowserCaches = false
     var includeAppSupport = false
     var includeSystemStorage = false
     var largeFileThresholdMB = 500
     var oldFileAgeDays = 365
     var maxResults = 1_500
     var excludedPaths: [String] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case includeCaches
+        case includeDownloads
+        case includeTemporary
+        case includeLargeFiles
+        case includeDuplicates
+        case includeOldFiles
+        case includeDeveloperData
+        case includeAppLeftovers
+        case includeBrowserCaches
+        case includeAppSupport
+        case includeSystemStorage
+        case largeFileThresholdMB
+        case oldFileAgeDays
+        case maxResults
+        case excludedPaths
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        includeCaches = try container.decodeIfPresent(Bool.self, forKey: .includeCaches) ?? true
+        includeDownloads = try container.decodeIfPresent(Bool.self, forKey: .includeDownloads) ?? true
+        includeTemporary = try container.decodeIfPresent(Bool.self, forKey: .includeTemporary) ?? true
+        includeLargeFiles = try container.decodeIfPresent(Bool.self, forKey: .includeLargeFiles) ?? true
+        includeDuplicates = try container.decodeIfPresent(Bool.self, forKey: .includeDuplicates) ?? true
+        includeOldFiles = try container.decodeIfPresent(Bool.self, forKey: .includeOldFiles) ?? true
+        includeDeveloperData = try container.decodeIfPresent(Bool.self, forKey: .includeDeveloperData) ?? true
+        includeAppLeftovers = try container.decodeIfPresent(Bool.self, forKey: .includeAppLeftovers) ?? true
+        includeBrowserCaches = try container.decodeIfPresent(Bool.self, forKey: .includeBrowserCaches) ?? false
+        includeAppSupport = try container.decodeIfPresent(Bool.self, forKey: .includeAppSupport) ?? false
+        includeSystemStorage = try container.decodeIfPresent(Bool.self, forKey: .includeSystemStorage) ?? false
+        largeFileThresholdMB = try container.decodeIfPresent(Int.self, forKey: .largeFileThresholdMB) ?? 500
+        oldFileAgeDays = try container.decodeIfPresent(Int.self, forKey: .oldFileAgeDays) ?? 365
+        maxResults = try container.decodeIfPresent(Int.self, forKey: .maxResults) ?? 1_500
+        excludedPaths = try container.decodeIfPresent([String].self, forKey: .excludedPaths) ?? []
+    }
 }
 
 struct ScanResult {
@@ -25,6 +65,18 @@ struct ScanResult {
 
 actor FileScanner {
     private let fileManager = FileManager.default
+
+    private struct DeveloperDataRoot {
+        let url: URL
+        let sourceName: String
+        let warning: String?
+    }
+
+    private struct BrowserCacheRoot {
+        let url: URL
+        let browserName: String
+        let profileName: String?
+    }
 
     func scan(
         options: ScanOptions,
@@ -122,12 +174,33 @@ actor FileScanner {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
             await progress("Scanning developer data")
             await collectExactDirectoryCandidates(
-                roots: developerDataRoots(home: home),
+                roots: developerDataRoots(home: home).map(\.url),
                 category: .developerData,
                 reason: "Developer build, simulator, package, or tool cache data",
                 risk: .medium,
                 maxDepth: 4,
                 minSize: 50 * 1_024 * 1_024,
+                items: &items,
+                seenPaths: &seenPaths,
+                summary: &summary,
+                excludedPaths: excludedPaths,
+                sourceKind: .developer,
+                sourceNameProvider: { url in
+                    self.developerSource(for: url, home: home)?.sourceName
+                },
+                sourceWarningProvider: { url in
+                    self.developerSource(for: url, home: home)?.warning
+                },
+                onItem: onItem,
+                onSummary: onSummary
+            )
+        }
+
+        if options.includeBrowserCaches {
+            if Task.isCancelled { return ScanResult(items: items, summary: summary) }
+            await progress("Scanning browser caches")
+            await collectBrowserCacheCandidates(
+                roots: browserCacheRoots(home: home),
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
@@ -252,6 +325,9 @@ actor FileScanner {
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
         excludedPaths: [String],
+        sourceKind: CleanupSourceKind? = nil,
+        sourceName: String? = nil,
+        sourceWarning: String? = nil,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
@@ -282,7 +358,10 @@ actor FileScanner {
                     risk: risk,
                     reason: reason,
                     isDirectory: values?.isDirectory ?? true,
-                    protection: protection(for: child, category: category, risk: risk)
+                    protection: protection(for: child, category: category, risk: risk),
+                    sourceKind: sourceKind ?? CleanupItem.defaultSourceKind(for: category),
+                    sourceName: sourceName,
+                    sourceWarning: sourceWarning
                 )
                 items.append(item)
                 await onItem(item)
@@ -302,6 +381,9 @@ actor FileScanner {
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
         excludedPaths: [String],
+        sourceKind: CleanupSourceKind? = nil,
+        sourceNameProvider: ((URL) -> String?)? = nil,
+        sourceWarningProvider: ((URL) -> String?)? = nil,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
@@ -327,7 +409,10 @@ actor FileScanner {
                 risk: risk,
                 reason: reason,
                 isDirectory: true,
-                protection: protection(for: root, category: category, risk: risk)
+                protection: protection(for: root, category: category, risk: risk),
+                sourceKind: sourceKind ?? CleanupItem.defaultSourceKind(for: category),
+                sourceName: sourceNameProvider?(root),
+                sourceWarning: sourceWarningProvider?(root)
             )
             items.append(item)
             await onItem(item)
@@ -346,6 +431,9 @@ actor FileScanner {
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
         excludedPaths: [String],
+        sourceKind: CleanupSourceKind? = nil,
+        sourceName: String? = nil,
+        sourceWarning: String? = nil,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
@@ -407,7 +495,10 @@ actor FileScanner {
                     risk: risk,
                     reason: reason,
                     isDirectory: false,
-                    protection: protection(for: url, category: category, risk: risk)
+                    protection: protection(for: url, category: category, risk: risk),
+                    sourceKind: sourceKind ?? CleanupItem.defaultSourceKind(for: category),
+                    sourceName: sourceName,
+                    sourceWarning: sourceWarning
                 )
                 items.append(item)
                 await onItem(item)
@@ -488,13 +579,53 @@ actor FileScanner {
                         isDirectory: false,
                         protection: protection(for: url, category: .duplicates, risk: .medium),
                         duplicateGroupID: groupID,
-                        duplicateCount: matches.count
+                        duplicateCount: matches.count,
+                        sourceKind: .duplicate,
+                        sourceName: "SHA-256 Duplicates"
                     )
                     items.append(item)
                     await onItem(item)
                     await onSummary(summary)
                 }
             }
+        }
+    }
+
+    private func collectBrowserCacheCandidates(
+        roots: [BrowserCacheRoot],
+        items: inout [CleanupItem],
+        seenPaths: inout Set<String>,
+        summary: inout ScanSummary,
+        excludedPaths: [String],
+        onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
+        onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
+    ) async {
+        for root in roots where fileManager.fileExists(atPath: root.url.path) && !isExcluded(root.url, excludedPaths: excludedPaths) {
+            if Task.isCancelled { return }
+            guard !isSystemCritical(root.url), seenPaths.insert(root.url.path).inserted else { continue }
+            let values = try? root.url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
+            guard values?.isDirectory == true else { continue }
+
+            let size = directorySize(root.url, maxDepth: 4, summary: &summary)
+            guard size >= 5 * 1_024 * 1_024 else { continue }
+            let profileText = root.profileName.map { " profile \($0)" } ?? ""
+            let item = CleanupItem(
+                url: root.url,
+                name: root.url.lastPathComponent,
+                size: size,
+                modifiedAt: values?.contentModificationDate,
+                category: .caches,
+                risk: .medium,
+                reason: "\(root.browserName)\(profileText) browser cache",
+                isDirectory: true,
+                protection: .reviewOnly,
+                sourceKind: .browser,
+                sourceName: root.profileName.map { "\(root.browserName) - \($0)" } ?? root.browserName,
+                sourceWarning: "Only cache folders are targeted. Cookies, passwords, bookmarks, history, sessions, and profile databases stay protected."
+            )
+            items.append(item)
+            await onItem(item)
+            await onSummary(summary)
         }
     }
 
@@ -513,7 +644,10 @@ actor FileScanner {
             home.appendingPathComponent("Library/Application Support"),
             home.appendingPathComponent("Library/Containers"),
             home.appendingPathComponent("Library/HTTPStorages"),
-            home.appendingPathComponent("Library/WebKit")
+            home.appendingPathComponent("Library/WebKit"),
+            home.appendingPathComponent("Library/Preferences"),
+            home.appendingPathComponent("Library/Logs"),
+            home.appendingPathComponent("Library/LaunchAgents")
         ]
 
         for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
@@ -535,7 +669,7 @@ actor FileScanner {
                 let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
                 let isDirectory = values?.isDirectory ?? true
                 let size = isDirectory ? directorySize(child, maxDepth: 3, summary: &summary) : fileSize(child)
-                guard size >= 1_024 * 1_024 else { continue }
+                guard size >= minimumLeftoverSize(for: child) else { continue }
                 let item = CleanupItem(
                     url: child,
                     name: child.lastPathComponent,
@@ -546,13 +680,27 @@ actor FileScanner {
                     reason: "Possible leftover data for uninstalled app \(bundleID)",
                     isDirectory: isDirectory,
                     protection: .reviewOnly,
-                    relatedBundleID: bundleID
+                    relatedBundleID: bundleID,
+                    sourceKind: .appLeftover,
+                    sourceName: bundleID,
+                    sourceWarning: "Possible leftover for an app that is not currently installed. Review before removing."
                 )
                 items.append(item)
                 await onItem(item)
                 await onSummary(summary)
             }
         }
+    }
+
+    private func minimumLeftoverSize(for url: URL) -> Int64 {
+        let path = url.path
+        if path.contains("/Library/Preferences/") || path.contains("/Library/LaunchAgents/") {
+            return 1_024
+        }
+        if path.contains("/Library/Logs/") {
+            return 100 * 1_024
+        }
+        return 1_024 * 1_024
     }
 
     private func directorySize(_ url: URL, maxDepth: Int, summary: inout ScanSummary) -> Int64 {
@@ -597,7 +745,10 @@ actor FileScanner {
             "/Library/Mail/",
             "/Library/Photos/",
             "/Library/Messages/",
-            "/Library/Application Support/MobileSync/"
+            "/Library/Application Support/MobileSync/",
+            "/Library/Application Support/Google/Chrome/",
+            "/Library/Application Support/Microsoft Edge/",
+            "/Library/Application Support/Firefox/"
         ]
         return excludedFragments.contains { path.contains($0) }
     }
@@ -657,8 +808,16 @@ actor FileScanner {
             "\(home)/Library/Calendars",
             "\(home)/Library/AddressBook"
         ]
+        let sensitiveBrowserPrefixes = [
+            "\(home)/Library/Application Support/Google/Chrome",
+            "\(home)/Library/Application Support/Microsoft Edge",
+            "\(home)/Library/Application Support/Firefox",
+            "\(home)/Library/Safari"
+        ]
 
-        return protectedExact.contains(path) || protectedPrefixes.contains { path.hasPrefix($0) }
+        return protectedExact.contains(path) ||
+            protectedPrefixes.contains { path.hasPrefix($0) } ||
+            sensitiveBrowserPrefixes.contains { path.hasPrefix($0) && !path.contains("/Cache") && !path.contains("/cache2") }
     }
 
     private func protection(for url: URL, category: CleanupCategory, risk: CleanupRisk) -> CleanupProtection {
@@ -696,6 +855,7 @@ actor FileScanner {
 
     private func installedApplicationBundleIDs(home: URL) -> Set<String> {
         let appRoots = [
+            URL(fileURLWithPath: "/System/Applications"),
             URL(fileURLWithPath: "/Applications"),
             home.appendingPathComponent("Applications")
         ]
@@ -731,39 +891,108 @@ actor FileScanner {
         return name
     }
 
-    private func developerDataRoots(home: URL) -> [URL] {
+    private func developerDataRoots(home: URL) -> [DeveloperDataRoot] {
         [
-            home.appendingPathComponent("Library/Developer/Xcode/DerivedData"),
-            home.appendingPathComponent("Library/Developer/Xcode/Archives"),
-            home.appendingPathComponent("Library/Developer/Xcode/Products"),
-            home.appendingPathComponent("Library/Developer/Xcode/UserData/Previews"),
-            home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport"),
-            home.appendingPathComponent("Library/Developer/CoreSimulator/Devices"),
-            home.appendingPathComponent("Library/Developer/CoreSimulator/Caches"),
-            home.appendingPathComponent("Library/Developer/XCTestDevices"),
-            home.appendingPathComponent("Library/Caches/com.apple.dt.Xcode"),
-            home.appendingPathComponent("Library/Caches/org.swift.swiftpm"),
-            home.appendingPathComponent("Library/Caches/Homebrew"),
-            home.appendingPathComponent(".npm"),
-            home.appendingPathComponent(".npm/_cacache"),
-            home.appendingPathComponent(".cache/yarn"),
-            home.appendingPathComponent("Library/Caches/Yarn"),
-            home.appendingPathComponent(".pnpm-store"),
-            home.appendingPathComponent(".cache/pnpm"),
-            home.appendingPathComponent("Library/pnpm/store"),
-            home.appendingPathComponent(".gradle/caches"),
-            home.appendingPathComponent(".gradle/wrapper/dists"),
-            home.appendingPathComponent(".m2/repository"),
-            home.appendingPathComponent(".cache/go-build"),
-            home.appendingPathComponent("go/pkg/mod/cache"),
-            home.appendingPathComponent(".cargo/registry/cache"),
-            home.appendingPathComponent(".cargo/git/checkouts"),
-            home.appendingPathComponent(".rustup/downloads"),
-            home.appendingPathComponent("Library/Containers/com.docker.docker"),
-            home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms"),
-            home.appendingPathComponent("Library/Group Containers/group.com.docker"),
-            home.appendingPathComponent("Library/Group Containers/group.com.docker/cache")
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/Xcode/DerivedData"), sourceName: "Xcode DerivedData", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/Xcode/Archives"), sourceName: "Xcode Archives", warning: "Archives may be needed for symbolication or re-distribution."),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/Xcode/Products"), sourceName: "Xcode Products", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/Xcode/UserData/Previews"), sourceName: "Xcode Previews", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport"), sourceName: "Xcode DeviceSupport", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/CoreSimulator/Devices"), sourceName: "Simulator Devices", warning: "Simulator devices can contain app data used for development."),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/CoreSimulator/Caches"), sourceName: "Simulator Caches", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/XCTestDevices"), sourceName: "XCTest Devices", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Caches/com.apple.dt.Xcode"), sourceName: "Xcode Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Caches/org.swift.swiftpm"), sourceName: "SwiftPM Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Caches/Homebrew"), sourceName: "Homebrew Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".npm"), sourceName: "npm Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".npm/_cacache"), sourceName: "npm Content Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".cache/yarn"), sourceName: "Yarn Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Caches/Yarn"), sourceName: "Yarn Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".pnpm-store"), sourceName: "pnpm Store", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".cache/pnpm"), sourceName: "pnpm Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/pnpm/store"), sourceName: "pnpm Store", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".gradle/caches"), sourceName: "Gradle Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".gradle/wrapper/dists"), sourceName: "Gradle Wrapper Distributions", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".m2/repository"), sourceName: "Maven Repository", warning: "Maven dependencies may need to be downloaded again."),
+            DeveloperDataRoot(url: home.appendingPathComponent(".cache/go-build"), sourceName: "Go Build Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("go/pkg/mod/cache"), sourceName: "Go Module Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".cargo/registry/cache"), sourceName: "Cargo Registry Cache", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".cargo/git/checkouts"), sourceName: "Cargo Git Checkouts", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent(".rustup/downloads"), sourceName: "Rustup Downloads", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Containers/com.docker.docker"), sourceName: "Docker Container Data", warning: "Review Docker storage before removing; it may include images, volumes, and VM data."),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms"), sourceName: "Docker VM Storage", warning: "Docker VM storage may include images and volumes."),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Group Containers/group.com.docker"), sourceName: "Docker Group Container", warning: "Review Docker storage before removing."),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Group Containers/group.com.docker/cache"), sourceName: "Docker Cache", warning: nil)
         ]
+    }
+
+    private func developerSource(for url: URL, home: URL) -> DeveloperDataRoot? {
+        developerDataRoots(home: home).first { root in
+            url.standardizedFileURL.path == root.url.standardizedFileURL.path
+        }
+    }
+
+    private func browserCacheRoots(home: URL) -> [BrowserCacheRoot] {
+        var roots: [BrowserCacheRoot] = [
+            BrowserCacheRoot(url: home.appendingPathComponent("Library/Caches/com.apple.Safari"), browserName: "Safari", profileName: nil),
+            BrowserCacheRoot(url: home.appendingPathComponent("Library/Caches/Google/Chrome"), browserName: "Chrome", profileName: nil),
+            BrowserCacheRoot(url: home.appendingPathComponent("Library/Caches/Microsoft Edge"), browserName: "Edge", profileName: nil),
+            BrowserCacheRoot(url: home.appendingPathComponent("Library/Caches/Firefox"), browserName: "Firefox", profileName: nil)
+        ]
+
+        roots.append(contentsOf: chromiumProfileCaches(
+            browserName: "Chrome",
+            base: home.appendingPathComponent("Library/Application Support/Google/Chrome")
+        ))
+        roots.append(contentsOf: chromiumProfileCaches(
+            browserName: "Edge",
+            base: home.appendingPathComponent("Library/Application Support/Microsoft Edge")
+        ))
+        roots.append(contentsOf: firefoxProfileCaches(
+            base: home.appendingPathComponent("Library/Application Support/Firefox/Profiles")
+        ))
+
+        return roots
+    }
+
+    private func chromiumProfileCaches(browserName: String, base: URL) -> [BrowserCacheRoot] {
+        guard let profiles = try? fileManager.contentsOfDirectory(
+            at: base,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        return profiles.compactMap { profile in
+            guard (try? profile.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return nil }
+            let name = profile.lastPathComponent
+            guard name == "Default" || name.hasPrefix("Profile ") else { return nil }
+            return BrowserCacheRoot(
+                url: profile.appendingPathComponent("Cache", isDirectory: true),
+                browserName: browserName,
+                profileName: name
+            )
+        }
+    }
+
+    private func firefoxProfileCaches(base: URL) -> [BrowserCacheRoot] {
+        guard let profiles = try? fileManager.contentsOfDirectory(
+            at: base,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        return profiles.compactMap { profile in
+            guard (try? profile.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return nil }
+            return BrowserCacheRoot(
+                url: profile.appendingPathComponent("cache2", isDirectory: true),
+                browserName: "Firefox",
+                profileName: profile.lastPathComponent
+            )
+        }
     }
 
     private func appSupportRoots(home: URL) -> [URL] {
