@@ -157,6 +157,7 @@ private struct CLIItem: Codable {
     let sourceName: String?
     let sourceWarning: String?
     let relatedBundleID: String?
+    let appLeftoverConfidence: AppLeftoverConfidence?
     let duplicateGroupID: String?
     let duplicateCount: Int?
 
@@ -174,6 +175,7 @@ private struct CLIItem: Codable {
         sourceName = item.sourceName
         sourceWarning = item.sourceWarning
         relatedBundleID = item.relatedBundleID
+        appLeftoverConfidence = item.appLeftoverConfidence
         duplicateGroupID = item.duplicateGroupID
         duplicateCount = item.duplicateCount
     }

@@ -773,7 +773,11 @@ actor FileScanner {
             home.appendingPathComponent("Library/WebKit"),
             home.appendingPathComponent("Library/Preferences"),
             home.appendingPathComponent("Library/Logs"),
-            home.appendingPathComponent("Library/LaunchAgents")
+            home.appendingPathComponent("Library/LaunchAgents"),
+            URL(fileURLWithPath: "/Library/LaunchAgents"),
+            URL(fileURLWithPath: "/Library/LaunchDaemons"),
+            URL(fileURLWithPath: "/Library/Receipts"),
+            URL(fileURLWithPath: "/private/var/db/receipts")
         ]
 
         for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
@@ -790,7 +794,7 @@ actor FileScanner {
             for child in children {
                 if await shouldStopPhase(phase) { return }
                 guard !isExcluded(child, excludedPaths: excludedPaths) else { continue }
-                guard let bundleID = probableBundleID(from: child), !installedBundleIDs.contains(bundleID) else { continue }
+                guard let match = appLeftoverMatch(from: child), !installedBundleIDs.contains(match.bundleID) else { continue }
                 guard !isProtectedPath(child), seenPaths.insert(child.path).inserted else { continue }
                 let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
                 let isDirectory = values?.isDirectory ?? true
@@ -803,13 +807,14 @@ actor FileScanner {
                     modifiedAt: values?.contentModificationDate,
                     category: .appLeftovers,
                     risk: .medium,
-                    reason: "Possible leftover data for uninstalled app \(bundleID)",
+                    reason: "\(match.confidence.rawValue) leftover data for uninstalled app \(match.bundleID)",
                     isDirectory: isDirectory,
                     protection: .reviewOnly,
-                    relatedBundleID: bundleID,
+                    relatedBundleID: match.bundleID,
                     sourceKind: .appLeftover,
-                    sourceName: bundleID,
-                    sourceWarning: "Possible leftover for an app that is not currently installed. Review before removing."
+                    sourceName: match.bundleID,
+                    sourceWarning: "\(match.confidence.explanation) Review before removing.",
+                    appLeftoverConfidence: match.confidence
                 )
                 items.append(item)
                 await onItem(item)
@@ -820,7 +825,9 @@ actor FileScanner {
 
     private func minimumLeftoverSize(for url: URL) -> Int64 {
         let path = url.path
-        if path.contains("/Library/Preferences/") || path.contains("/Library/LaunchAgents/") {
+        if path.contains("/Library/Preferences/") || path.contains("/Library/LaunchAgents/") ||
+            path.contains("/Library/LaunchDaemons/") || path.contains("/Library/Receipts/") ||
+            path.contains("/private/var/db/receipts/") {
             return 1_024
         }
         if path.contains("/Library/Logs/") {
@@ -1005,6 +1012,23 @@ actor FileScanner {
         }
 
         return bundleIDs
+    }
+
+    private func appLeftoverMatch(from url: URL) -> (bundleID: String, confidence: AppLeftoverConfidence)? {
+        let path = url.path
+        let confidence: AppLeftoverConfidence
+        if path.contains("/Library/Receipts/") || path.contains("/private/var/db/receipts/") ||
+            path.contains("/Library/Preferences/") || path.contains("/Library/LaunchAgents/") ||
+            path.contains("/Library/LaunchDaemons/") {
+            confidence = .exactBundleID
+        } else if path.contains("/Library/Containers/") || path.contains("/Library/HTTPStorages/") || path.contains("/Library/WebKit/") {
+            confidence = .probableBundleID
+        } else {
+            confidence = .weakNameMatch
+        }
+
+        guard let bundleID = probableBundleID(from: url) else { return nil }
+        return (bundleID, confidence)
     }
 
     private func probableBundleID(from url: URL) -> String? {

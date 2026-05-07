@@ -8,6 +8,7 @@ struct ToolbarView: View {
     @State private var showingTrashHistory = false
     @State private var showingStage = false
     @State private var showingDuplicateReview = false
+    @State private var showingAppLeftovers = false
 
     var body: some View {
         HStack(spacing: 14) {
@@ -75,6 +76,13 @@ struct ToolbarView: View {
             .disabled(manager.duplicateGroups.isEmpty || isScanning)
 
             Button {
+                showingAppLeftovers = true
+            } label: {
+                Label("Leftovers", systemImage: "app.badge")
+            }
+            .disabled(manager.appLeftoverGroups.isEmpty || isScanning)
+
+            Button {
                 showingTrashHistory = true
             } label: {
                 Label("History", systemImage: "clock.arrow.circlepath")
@@ -117,6 +125,10 @@ struct ToolbarView: View {
             DuplicateReviewView(isPresented: $showingDuplicateReview, showingDeleteAlert: $showingDeleteAlert)
                 .environmentObject(manager)
         }
+        .sheet(isPresented: $showingAppLeftovers) {
+            AppLeftoverReviewView(isPresented: $showingAppLeftovers, showingDeleteAlert: $showingDeleteAlert)
+                .environmentObject(manager)
+        }
     }
 
     private var isScanning: Bool {
@@ -143,6 +155,116 @@ struct ToolbarView: View {
 
     private var stageButtonTitle: String {
         manager.staleStageEntries.isEmpty ? "Stage" : "Stage (\(manager.staleStageEntries.count))"
+    }
+}
+
+struct AppLeftoverReviewView: View {
+    @EnvironmentObject private var manager: CleanupManager
+    @Binding var isPresented: Bool
+    @Binding var showingDeleteAlert: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("App Leftovers")
+                        .font(.title2.weight(.semibold))
+                    Text("\(manager.appLeftoverGroups.count) app group\(manager.appLeftoverGroups.count == 1 ? "" : "s") found")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Close") {
+                    isPresented = false
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+            .padding(18)
+
+            Divider()
+
+            if manager.appLeftoverGroups.isEmpty {
+                ContentUnavailableView("No App Leftovers", systemImage: "app.badge", description: Text("Run a scan with App Leftovers enabled to review grouped leftovers."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(manager.appLeftoverGroups) { group in
+                    AppLeftoverGroupRow(group: group)
+                        .environmentObject(manager)
+                }
+                .listStyle(.inset)
+            }
+
+            Divider()
+
+            HStack {
+                Text("\(manager.selectedItems.filter { $0.category == .appLeftovers && $0.canMoveToTrash }.count) selected")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    isPresented = false
+                    showingDeleteAlert = true
+                } label: {
+                    Label("Review Selected in Trash", systemImage: "trash")
+                }
+                .disabled(!manager.selectedItems.contains { $0.category == .appLeftovers && $0.canMoveToTrash })
+                Button {
+                    manager.moveSelectedToStage()
+                    isPresented = false
+                } label: {
+                    Label("Move Selected to Stage", systemImage: "tray.and.arrow.down")
+                }
+                .disabled(!manager.selectedItems.contains { $0.category == .appLeftovers && $0.canMoveToTrash })
+            }
+            .padding(18)
+        }
+        .frame(minWidth: 760, minHeight: 560)
+    }
+}
+
+private struct AppLeftoverGroupRow: View {
+    @EnvironmentObject private var manager: CleanupManager
+    let group: AppLeftoverGroup
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "app.badge")
+                    .foregroundStyle(.pink)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(group.bundleID)
+                        .font(.headline)
+                    Text("\(group.itemCount) item\(group.itemCount == 1 ? "" : "s"), \(ByteCount.string(group.totalBytes))")
+                        .foregroundStyle(.secondary)
+                    Text(group.highestConfidence.rawValue)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(group.highestConfidence == .weakNameMatch ? .orange : .secondary)
+                }
+                Spacer()
+                Button {
+                    manager.selectAppLeftoverGroup(group)
+                } label: {
+                    Label("Select Group", systemImage: "checkmark.circle")
+                }
+            }
+
+            ForEach(group.items.prefix(5)) { item in
+                HStack(spacing: 8) {
+                    Image(systemName: item.isDirectory ? "folder" : "doc")
+                        .foregroundStyle(item.isDirectory ? .blue : .secondary)
+                    Text(item.path)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    Text(ByteCount.string(item.size))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .padding(.vertical, 8)
     }
 }
 

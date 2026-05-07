@@ -103,6 +103,22 @@ final class CleanupManager: ObservableObject {
             }
     }
 
+    var appLeftoverGroups: [AppLeftoverGroup] {
+        Dictionary(grouping: items.filter { $0.category == .appLeftovers && $0.relatedBundleID != nil }, by: { $0.relatedBundleID ?? "" })
+            .compactMap { bundleID, groupItems in
+                let existingItems = groupItems.filter(\.existsOnDisk)
+                return existingItems.isEmpty
+                    ? nil
+                    : AppLeftoverGroup(id: bundleID, items: existingItems.sorted { $0.path < $1.path })
+            }
+            .sorted {
+                if $0.totalBytes != $1.totalBytes {
+                    return $0.totalBytes > $1.totalBytes
+                }
+                return $0.bundleID < $1.bundleID
+            }
+    }
+
     var lastScanDescription: String? {
         guard let lastScannedAt else { return nil }
         return Self.scanDateFormatter.string(from: lastScannedAt)
@@ -362,6 +378,12 @@ final class CleanupManager: ObservableObject {
 
     func select(_ visibleItems: [CleanupItem]) {
         selectedIDs.formUnion(visibleItems.filter(\.canMoveToTrash).map(\.id))
+    }
+
+    func selectAppLeftoverGroup(_ group: AppLeftoverGroup) {
+        let selectable = group.items.filter(\.canMoveToTrash)
+        selectedIDs.formUnion(selectable.map(\.id))
+        lastDeletionMessage = "Selected \(selectable.count) leftover item\(selectable.count == 1 ? "" : "s") for \(group.bundleID)."
     }
 
     func selectDuplicates(in group: DuplicateReviewGroup, keeping strategy: DuplicateKeepStrategy) {

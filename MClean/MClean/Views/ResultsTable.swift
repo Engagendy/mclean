@@ -105,6 +105,11 @@ struct ResultsTable: View {
                         Text(item.reason)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+                        if let confidence = item.appLeftoverConfidence {
+                            Text(confidence.rawValue)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         if let duplicateCount = item.duplicateCount {
                             Text("\(duplicateCount) duplicate matches")
                                 .font(.caption)
@@ -263,6 +268,16 @@ struct FileDetailsView: View {
                 }
                 if let relatedBundleID = item.relatedBundleID {
                     LabeledContent("Related Bundle ID", value: relatedBundleID)
+                }
+                if let confidence = item.appLeftoverConfidence {
+                    LabeledContent("Leftover Confidence") {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(confidence.rawValue)
+                            Text(confidence.explanation)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 LabeledContent("Source") {
                     Label(item.sourceName ?? item.resolvedSourceKind.rawValue, systemImage: item.resolvedSourceKind.symbolName)

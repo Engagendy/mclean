@@ -20,12 +20,12 @@ Current foundation:
 Implementation tasks:
 
 - `[~]` Expand installed-app inventory to include `/System/Applications`, Setapp-style app locations, and nested app bundles.
-- `[ ]` Detect package receipts from `/Library/Receipts`, `/private/var/db/receipts`, and user-visible install metadata where readable.
-- `[~]` Detect launch agents and launch daemons related to removed apps.
+- `[x]` Detect package receipts from `/Library/Receipts`, `/private/var/db/receipts`, and user-visible install metadata where readable.
+- `[x]` Detect launch agents and launch daemons related to removed apps.
 - `[x]` Detect preferences in `~/Library/Preferences`.
 - `[~]` Detect logs in `~/Library/Logs` and related diagnostic locations.
-- `[ ]` Group leftovers by bundle ID in the UI.
-- `[~]` Add confidence labels for leftovers: exact bundle ID, probable bundle ID, weak name match.
+- `[x]` Group leftovers by bundle ID in the UI.
+- `[x]` Add confidence labels for leftovers: exact bundle ID, probable bundle ID, weak name match.
 - `[ ]` Add tests for bundle-ID parsing and installed-app exclusion behavior.
 
 Acceptance criteria:

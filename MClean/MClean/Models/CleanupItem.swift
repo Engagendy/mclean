@@ -102,6 +102,23 @@ enum CleanupSourceKind: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+enum AppLeftoverConfidence: String, CaseIterable, Codable {
+    case exactBundleID = "Exact Bundle ID"
+    case probableBundleID = "Probable Bundle ID"
+    case weakNameMatch = "Weak Name Match"
+
+    var explanation: String {
+        switch self {
+        case .exactBundleID:
+            return "The path or receipt directly matches a bundle identifier for an app not currently installed."
+        case .probableBundleID:
+            return "The path looks like a bundle identifier, but should still be reviewed."
+        case .weakNameMatch:
+            return "The path only loosely matches app naming patterns. Review carefully."
+        }
+    }
+}
+
 struct CleanupItem: Identifiable, Hashable, Codable {
     var id = UUID()
     let url: URL
@@ -119,6 +136,7 @@ struct CleanupItem: Identifiable, Hashable, Codable {
     var sourceKind: CleanupSourceKind?
     var sourceName: String?
     var sourceWarning: String?
+    var appLeftoverConfidence: AppLeftoverConfidence?
 
     var path: String { url.path }
     var existsOnDisk: Bool { FileManager.default.fileExists(atPath: path) }
@@ -146,7 +164,8 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         relatedBundleID: String? = nil,
         sourceKind: CleanupSourceKind? = nil,
         sourceName: String? = nil,
-        sourceWarning: String? = nil
+        sourceWarning: String? = nil,
+        appLeftoverConfidence: AppLeftoverConfidence? = nil
     ) {
         self.id = id
         self.url = url
@@ -164,6 +183,7 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         self.sourceKind = sourceKind
         self.sourceName = sourceName
         self.sourceWarning = sourceWarning
+        self.appLeftoverConfidence = appLeftoverConfidence
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -183,6 +203,7 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         case sourceKind
         case sourceName
         case sourceWarning
+        case appLeftoverConfidence
     }
 
     init(from decoder: Decoder) throws {
@@ -203,6 +224,7 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         sourceKind = try container.decodeIfPresent(CleanupSourceKind.self, forKey: .sourceKind)
         sourceName = try container.decodeIfPresent(String.self, forKey: .sourceName)
         sourceWarning = try container.decodeIfPresent(String.self, forKey: .sourceWarning)
+        appLeftoverConfidence = try container.decodeIfPresent(AppLeftoverConfidence.self, forKey: .appLeftoverConfidence)
     }
 
     static func defaultSourceKind(for category: CleanupCategory) -> CleanupSourceKind {
@@ -218,6 +240,20 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         default:
             return .general
         }
+    }
+}
+
+struct AppLeftoverGroup: Identifiable, Hashable {
+    let id: String
+    let items: [CleanupItem]
+
+    var bundleID: String { id }
+    var totalBytes: Int64 { items.reduce(0) { $0 + $1.size } }
+    var itemCount: Int { items.count }
+    var highestConfidence: AppLeftoverConfidence {
+        if items.contains(where: { $0.appLeftoverConfidence == .exactBundleID }) { return .exactBundleID }
+        if items.contains(where: { $0.appLeftoverConfidence == .probableBundleID }) { return .probableBundleID }
+        return .weakNameMatch
     }
 }
 
