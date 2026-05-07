@@ -9,26 +9,29 @@ enum SidebarDestination: Hashable {
 struct SidebarView: View {
     @EnvironmentObject private var manager: CleanupManager
     @Binding var selectedDestination: SidebarDestination
+    private let modeColumns = [
+        GridItem(.flexible(minimum: 72), spacing: 6),
+        GridItem(.flexible(minimum: 72), spacing: 6)
+    ]
 
     var body: some View {
         List(selection: $selectedDestination) {
             Section("Mode") {
-                Picker("Scan mode", selection: Binding(
-                    get: { manager.scanMode },
-                    set: { manager.applyScanMode($0) }
-                )) {
+                LazyVGrid(columns: modeColumns, alignment: .leading, spacing: 6) {
                     ForEach(ScanMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
+                        scanModeButton(mode)
                     }
                 }
-                .pickerStyle(.segmented)
+                .padding(.vertical, 2)
 
                 Text(manager.scanMode.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(manager.scanMode.includedSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section("Views") {
@@ -94,5 +97,65 @@ struct SidebarView: View {
                 manager.markCustomScanMode()
             }
         )
+    }
+
+    private func scanModeButton(_ mode: ScanMode) -> some View {
+        let isSelected = manager.scanMode == mode
+
+        return Button {
+            manager.applyScanMode(mode)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: mode.sidebarSymbolName)
+                    .font(.caption)
+                    .frame(width: 14)
+                Text(mode.sidebarTitle)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+            .padding(.horizontal, 8)
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+        .background {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(isSelected ? Color.accentColor.opacity(0.35) : Color.secondary.opacity(0.12), lineWidth: 1)
+        }
+        .accessibilityLabel(mode.rawValue)
+        .help(mode.rawValue)
+    }
+}
+
+private extension ScanMode {
+    var sidebarTitle: String {
+        switch self {
+        case .downloadsReview:
+            return "Downloads"
+        default:
+            return rawValue
+        }
+    }
+
+    var sidebarSymbolName: String {
+        switch self {
+        case .quick:
+            return "bolt"
+        case .deep:
+            return "square.stack.3d.up"
+        case .developer:
+            return "hammer"
+        case .downloadsReview:
+            return "tray.and.arrow.down"
+        case .custom:
+            return "slider.horizontal.3"
+        }
     }
 }
