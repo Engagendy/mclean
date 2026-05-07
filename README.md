@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A native macOS cleanup scanner for finding cache, temporary, old, and large files</strong><br>
-  Native SwiftUI &bull; Safe review workflow &bull; Moves files to Trash
+  Native SwiftUI &bull; Safe review workflow &bull; Stage or Trash cleanup
 </p>
 
 <p align="center">
@@ -18,13 +18,13 @@
 
 ---
 
-MClean is a native SwiftUI macOS app for finding cleanup candidates on a Mac. It scans common cache, temporary, Downloads, large-file, and old-file locations, then lets the user review and move selected items to Trash.
+MClean is a native SwiftUI macOS app for finding cleanup candidates on a Mac. It scans common cache, temporary, Downloads, large-file, and old-file locations, then lets the user review selected items, move them to Stage for testing, or move them to Trash.
 
 ## Quick Start
 
 1. Install with Homebrew or download the latest DMG from [GitHub Releases](https://github.com/Engagendy/mclean/releases).
 2. Open MClean and press **Scan**. The app does not scan automatically on launch.
-3. Review the streamed results, sort by size, select the files you want, then move them to Trash.
+3. Review the streamed results, sort by size, select the files you want, then move them to Stage for testing or move them to Trash.
 
 ## Installation
 
@@ -73,6 +73,7 @@ MClean can scan normal user folders without Full Disk Access. macOS blocks some 
 - Previous scan results are restored on launch and refreshed on the next scan.
 - Full Disk Access guidance for protected macOS locations.
 - Review-before-delete sheet with high-risk and missing-file warnings.
+- Stage workflow for testing after files are moved out of their original locations.
 - Never-delete protection for sensitive macOS and user-library locations.
 - File details panel with risk, protection, duplicate, and app-leftover metadata.
 - Trash history with restore support for recently moved items.
@@ -81,7 +82,7 @@ MClean can scan normal user folders without Full Disk Access. macOS blocks some 
 
 ## Safety Model
 
-MClean does not permanently delete files. Cleanup actions move selected items to the macOS Trash so the user can restore them if needed.
+MClean defaults to reversible cleanup paths. Selected items can be moved to Stage first, then restored, moved to Trash, or permanently deleted from the Stage view after confirmation. The direct cleanup action still moves selected items to the macOS Trash so the user can restore them if needed.
 
 ## Build
 

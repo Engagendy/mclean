@@ -193,6 +193,26 @@ struct TrashHistoryEntry: Identifiable, Codable, Hashable {
     }
 }
 
+struct StageEntry: Identifiable, Codable, Hashable {
+    var id = UUID()
+    let itemName: String
+    let originalURL: URL
+    let stagedURL: URL
+    let size: Int64
+    let category: CleanupCategory
+    let reason: String
+    let stagedAt: Date
+
+    var canRestore: Bool {
+        FileManager.default.fileExists(atPath: stagedURL.path) &&
+            !FileManager.default.fileExists(atPath: originalURL.path)
+    }
+
+    var existsInStage: Bool {
+        FileManager.default.fileExists(atPath: stagedURL.path)
+    }
+}
+
 struct DiskSpaceSnapshot: Equatable {
     var totalBytes: Int64 = 0
     var freeBytes: Int64 = 0

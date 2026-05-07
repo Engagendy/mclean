@@ -3,6 +3,7 @@ import Foundation
 enum ScanResultsStore {
     private static let fileName = "last-scan-results.json"
     private static let historyFileName = "trash-history.json"
+    private static let stageFileName = "stage-items.json"
 
     static func load() -> StoredScanResults? {
         guard let url = try? appSupportDirectory().appendingPathComponent(fileName) else { return nil }
@@ -20,6 +21,13 @@ enum ScanResultsStore {
         } catch {
             return
         }
+    }
+
+    static func stageDirectory() throws -> URL {
+        let directory = try appSupportDirectory()
+            .appendingPathComponent("Stage", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
     }
 
     private static func appSupportDirectory() throws -> URL {
@@ -48,6 +56,27 @@ enum ScanResultsStore {
             let url = try appSupportDirectory().appendingPathComponent(historyFileName)
             let data = try Data(contentsOf: url)
             return try JSONDecoder().decode([TrashHistoryEntry].self, from: data)
+        } catch {
+            return []
+        }
+    }
+
+    static func saveStageEntries(_ entries: [StageEntry]) {
+        do {
+            let directory = try appSupportDirectory()
+            let url = directory.appendingPathComponent(stageFileName)
+            let data = try JSONEncoder().encode(entries)
+            try data.write(to: url, options: [.atomic])
+        } catch {
+            // Best-effort cache; staged files remain in the Stage folder.
+        }
+    }
+
+    static func loadStageEntries() -> [StageEntry] {
+        do {
+            let url = try appSupportDirectory().appendingPathComponent(stageFileName)
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([StageEntry].self, from: data)
         } catch {
             return []
         }

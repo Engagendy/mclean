@@ -13,6 +13,7 @@ final class CleanupManager: ObservableObject {
     @Published var fullDiskAccessStatus = FullDiskAccessService.currentStatus()
     @Published var detailItem: CleanupItem?
     @Published var trashHistory: [TrashHistoryEntry] = []
+    @Published var stageEntries: [StageEntry] = []
     @Published var diskSpace = DiskSpaceSnapshot()
 
     private let scanner = FileScanner()
@@ -59,6 +60,7 @@ final class CleanupManager: ObservableObject {
             state = .finished
         }
         trashHistory = ScanResultsStore.loadTrashHistory()
+        stageEntries = ScanResultsStore.loadStageEntries()
         refreshDiskSpace()
     }
 
@@ -262,6 +264,51 @@ final class CleanupManager: ObservableObject {
         refreshDiskSpace()
     }
 
+    func moveSelectedToStage() {
+        let targets = selectedItems.filter(\.canMoveToTrash)
+        guard !targets.isEmpty else { return }
+
+        var staged = 0
+        var failed = 0
+        var newEntries: [StageEntry] = []
+
+        for item in targets {
+            do {
+                let container = try ScanResultsStore.stageDirectory()
+                    .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                try FileManager.default.createDirectory(at: container, withIntermediateDirectories: true)
+                let stagedURL = container.appendingPathComponent(item.name, isDirectory: item.isDirectory)
+                try FileManager.default.moveItem(at: item.url, to: stagedURL)
+                newEntries.append(StageEntry(
+                    itemName: item.name,
+                    originalURL: item.url,
+                    stagedURL: stagedURL,
+                    size: item.size,
+                    category: item.category,
+                    reason: item.reason,
+                    stagedAt: Date()
+                ))
+                staged += 1
+            } catch {
+                failed += 1
+            }
+        }
+
+        let stagedIDs = Set(targets.map(\.id))
+        items.removeAll { stagedIDs.contains($0.id) && !FileManager.default.fileExists(atPath: $0.path) }
+        selectedIDs.subtract(stagedIDs)
+        summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
+        if !newEntries.isEmpty {
+            stageEntries.insert(contentsOf: newEntries, at: 0)
+            ScanResultsStore.saveStageEntries(stageEntries)
+        }
+        lastDeletionMessage = failed == 0
+            ? "Moved \(staged) item\(staged == 1 ? "" : "s") to Stage."
+            : "Moved \(staged) item\(staged == 1 ? "" : "s") to Stage. \(failed) failed."
+        ScanResultsStore.save(items: items, summary: summary)
+        refreshDiskSpace()
+    }
+
     func restoreFromTrash(_ entry: TrashHistoryEntry) {
         guard entry.canRestore else { return }
         do {
@@ -275,6 +322,83 @@ final class CleanupManager: ObservableObject {
         } catch {
             lastDeletionMessage = "Could not restore \(entry.itemName)."
         }
+    }
+
+    func restoreFromStage(_ entry: StageEntry) {
+        guard entry.canRestore else { return }
+        do {
+            let parent = entry.originalURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+            try FileManager.default.moveItem(at: entry.stagedURL, to: entry.originalURL)
+            removeStageContainerIfEmpty(for: entry)
+            stageEntries.removeAll { $0.id == entry.id }
+            ScanResultsStore.saveStageEntries(stageEntries)
+            lastDeletionMessage = "Restored \(entry.itemName)."
+            refreshDiskSpace()
+        } catch {
+            lastDeletionMessage = "Could not restore \(entry.itemName)."
+        }
+    }
+
+    func moveStagedToTrash(_ entry: StageEntry) {
+        guard entry.existsInStage else { return }
+        do {
+            var resultingURL: NSURL?
+            try FileManager.default.trashItem(at: entry.stagedURL, resultingItemURL: &resultingURL)
+            if let resultingURL = resultingURL as URL? {
+                trashHistory.insert(TrashHistoryEntry(
+                    itemName: entry.itemName,
+                    originalURL: entry.originalURL,
+                    trashedURL: resultingURL,
+                    size: entry.size,
+                    movedAt: Date()
+                ), at: 0)
+                trashHistory = Array(trashHistory.prefix(100))
+                ScanResultsStore.saveTrashHistory(trashHistory)
+            }
+            removeStageContainerIfEmpty(for: entry)
+            stageEntries.removeAll { $0.id == entry.id }
+            ScanResultsStore.saveStageEntries(stageEntries)
+            lastDeletionMessage = "Moved \(entry.itemName) to Trash."
+            refreshDiskSpace()
+        } catch {
+            lastDeletionMessage = "Could not move \(entry.itemName) to Trash."
+        }
+    }
+
+    func deleteStagedPermanently(_ entry: StageEntry) {
+        guard entry.existsInStage else { return }
+        do {
+            try FileManager.default.removeItem(at: entry.stagedURL)
+            removeStageContainerIfEmpty(for: entry)
+            stageEntries.removeAll { $0.id == entry.id }
+            ScanResultsStore.saveStageEntries(stageEntries)
+            lastDeletionMessage = "Deleted \(entry.itemName)."
+            refreshDiskSpace()
+        } catch {
+            lastDeletionMessage = "Could not delete \(entry.itemName)."
+        }
+    }
+
+    func removeMissingStageEntry(_ entry: StageEntry) {
+        guard !entry.existsInStage else { return }
+        stageEntries.removeAll { $0.id == entry.id }
+        ScanResultsStore.saveStageEntries(stageEntries)
+        lastDeletionMessage = "Removed missing staged item."
+    }
+
+    func revealStageFolder() {
+        guard let url = try? ScanResultsStore.stageDirectory() else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    private func removeStageContainerIfEmpty(for entry: StageEntry) {
+        let container = entry.stagedURL.deletingLastPathComponent()
+        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: container.path),
+              contents.isEmpty else {
+            return
+        }
+        try? FileManager.default.removeItem(at: container)
     }
 
     private static let scanDateFormatter: DateFormatter = {
