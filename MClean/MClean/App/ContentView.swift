@@ -80,6 +80,7 @@ struct FindingsFilter: Equatable {
     var minimumSizeMB = 0
     var risk: CleanupRisk?
     var protection: CleanupProtection?
+    var category: CleanupCategory?
     var sourceKind: CleanupSourceKind?
     var modifiedDate = ModifiedDateFilter.any
 
@@ -89,6 +90,7 @@ struct FindingsFilter: Equatable {
             minimumSizeMB > 0 ||
             risk != nil ||
             protection != nil ||
+            category != nil ||
             sourceKind != nil ||
             modifiedDate != .any
     }
@@ -111,6 +113,7 @@ struct FindingsFilter: Equatable {
 
         if let risk, item.risk != risk { return false }
         if let protection, item.protection != protection { return false }
+        if let category, item.category != category { return false }
         if let sourceKind, item.resolvedSourceKind != sourceKind { return false }
         if !modifiedDate.matches(item.modifiedAt) { return false }
         return true
@@ -223,6 +226,14 @@ struct FindingsFilterBar: View {
                     Text("Any Protection").tag(Optional<CleanupProtection>.none)
                     ForEach(CleanupProtection.allCases, id: \.self) { protection in
                         Text(protection.rawValue).tag(Optional(protection))
+                    }
+                }
+                .frame(width: 190)
+
+                Picker("Category", selection: $filter.category) {
+                    Text("Any Category").tag(Optional<CleanupCategory>.none)
+                    ForEach(CleanupCategory.allCases) { category in
+                        Text(category.rawValue).tag(Optional(category))
                     }
                 }
                 .frame(width: 190)

@@ -145,7 +145,7 @@ Acceptance criteria:
 
 ### Search And Advanced Filters
 
-Status: `[~]`
+Status: `[x]`
 
 Implementation tasks:
 
