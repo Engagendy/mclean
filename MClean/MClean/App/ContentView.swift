@@ -264,6 +264,7 @@ struct FindingsFilterBar: View {
                     Label("Clear Filters", systemImage: "xmark.circle")
                 }
                 .disabled(!filter.isActive)
+                .buttonStyle(.mcleanAction)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .controlSize(.small)
@@ -303,6 +304,7 @@ struct DashboardDetailView: View {
                     }
                 }
                 .keyboardShortcut("r", modifiers: [.command])
+                .buttonStyle(.mcleanAccentAction)
 
                 Menu {
                     SettingsLink {
@@ -332,6 +334,7 @@ struct DashboardDetailView: View {
                     Image(systemName: "ellipsis.circle")
                 }
                 .menuStyle(.borderlessButton)
+                .buttonStyle(.mcleanAction)
                 .help("More Actions")
             }
             .frame(maxWidth: .infinity, alignment: .leading)

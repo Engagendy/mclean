@@ -37,6 +37,7 @@ struct ToolbarView: View {
                     }
                 }
                 .keyboardShortcut("r", modifiers: [.command])
+                .buttonStyle(.mcleanAccentAction)
             }
 
             WrappingHStack(spacing: 8, lineSpacing: 8) {
@@ -46,6 +47,7 @@ struct ToolbarView: View {
                     Label("Recommended", systemImage: "checklist.checked")
                 }
                 .disabled(manager.items.isEmpty || isScanning)
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     manager.select(visibleItems)
@@ -53,6 +55,7 @@ struct ToolbarView: View {
                     Label("Select Visible", systemImage: "checkmark.square")
                 }
                 .disabled(visibleItems.isEmpty || isScanning)
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     manager.clearSelection()
@@ -60,6 +63,7 @@ struct ToolbarView: View {
                     Label("Clear", systemImage: "xmark.square")
                 }
                 .disabled(manager.selectedIDs.isEmpty || isScanning)
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     manager.removeMissingItems()
@@ -67,10 +71,12 @@ struct ToolbarView: View {
                     Label("Remove Missing", systemImage: "minus.circle")
                 }
                 .disabled(manager.missingItemCount == 0 || isScanning)
+                .buttonStyle(.mcleanAction)
 
                 SettingsLink {
                     Label("Settings", systemImage: "gearshape")
                 }
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     showingDuplicateReview = true
@@ -78,6 +84,7 @@ struct ToolbarView: View {
                     Label("Duplicates", systemImage: "doc.on.doc")
                 }
                 .disabled(manager.duplicateGroups.isEmpty || isScanning)
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     showingAppLeftovers = true
@@ -85,6 +92,7 @@ struct ToolbarView: View {
                     Label("Leftovers", systemImage: "app.badge")
                 }
                 .disabled(manager.appLeftoverGroups.isEmpty || isScanning)
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     showingTrashHistory = true
@@ -92,6 +100,7 @@ struct ToolbarView: View {
                     Label("History", systemImage: "clock.arrow.circlepath")
                 }
                 .disabled(manager.trashHistory.isEmpty)
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     showingStage = true
@@ -99,6 +108,7 @@ struct ToolbarView: View {
                     Label(stageButtonTitle, systemImage: manager.staleStageEntries.isEmpty ? "tray.full" : "exclamationmark.triangle")
                 }
                 .disabled(manager.stageEntries.isEmpty)
+                .buttonStyle(manager.staleStageEntries.isEmpty ? .mcleanAction : .mcleanWarningAction)
 
                 Button {
                     manager.moveSelectedToStage()
@@ -106,6 +116,7 @@ struct ToolbarView: View {
                     Label("Move to Stage", systemImage: "tray.and.arrow.down")
                 }
                 .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
+                .buttonStyle(.mcleanAccentAction)
 
                 if manager.showDirectTrashActions {
                     Button {
@@ -113,9 +124,8 @@ struct ToolbarView: View {
                     } label: {
                         Label("Move to Trash", systemImage: "trash")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
                     .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
+                    .buttonStyle(.mcleanDestructiveAction)
                 }
             }
             .controlSize(.small)
@@ -173,19 +183,21 @@ struct AppLeftoverReviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            WrappingHStack(spacing: 10, lineSpacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("App Leftovers")
                         .font(.title2.weight(.semibold))
                     Text("\(manager.appLeftoverGroups.count) app group\(manager.appLeftoverGroups.count == 1 ? "" : "s") found")
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer()
                 Button("Close") {
                     isPresented = false
                 }
                 .keyboardShortcut(.cancelAction)
+                .buttonStyle(.mcleanAction)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
 
             Divider()
@@ -214,6 +226,7 @@ struct AppLeftoverReviewView: View {
                         Label("Review Selected in Trash", systemImage: "trash")
                     }
                     .disabled(!manager.selectedItems.contains { $0.category == .appLeftovers && $0.canMoveToTrash })
+                    .buttonStyle(.mcleanDestructiveAction)
                 }
                 Button {
                     manager.moveSelectedToStage()
@@ -222,6 +235,7 @@ struct AppLeftoverReviewView: View {
                     Label("Move Selected to Stage", systemImage: "tray.and.arrow.down")
                 }
                 .disabled(!manager.selectedItems.contains { $0.category == .appLeftovers && $0.canMoveToTrash })
+                .buttonStyle(.mcleanAccentAction)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
@@ -255,6 +269,7 @@ private struct AppLeftoverGroupRow: View {
                 } label: {
                     Label("Select Group", systemImage: "checkmark.circle")
                 }
+                .buttonStyle(.mcleanAction)
             }
 
             ForEach(group.items.prefix(5)) { item in
@@ -327,6 +342,7 @@ struct DuplicateReviewView: View {
                     isPresented = false
                 }
                 .keyboardShortcut(.cancelAction)
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     manager.moveSelectedToStage()
@@ -335,6 +351,7 @@ struct DuplicateReviewView: View {
                     Label("Move Selected to Stage", systemImage: "tray.and.arrow.down")
                 }
                 .disabled(selectedDuplicateCount == 0)
+                .buttonStyle(.mcleanAccentAction)
 
                 if manager.showDirectTrashActions {
                     Button(role: .destructive) {
@@ -344,6 +361,7 @@ struct DuplicateReviewView: View {
                         Label("Review Trash", systemImage: "trash")
                     }
                     .disabled(selectedDuplicateCount == 0)
+                    .buttonStyle(.mcleanDestructiveAction)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -390,6 +408,7 @@ private struct DuplicateGroupSection: View {
                     } label: {
                         Label("Select Duplicates", systemImage: "checkmark.circle")
                     }
+                    .buttonStyle(.mcleanAction)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -494,12 +513,14 @@ struct StageView: View {
                     } label: {
                         Label("Trash Stale", systemImage: "trash")
                     }
+                    .buttonStyle(.mcleanDestructiveAction)
                 }
                 Button {
                     manager.revealStageFolder()
                 } label: {
                     Label("Reveal Stage", systemImage: "folder")
                 }
+                .buttonStyle(.mcleanAction)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
@@ -528,6 +549,7 @@ struct StageView: View {
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
+                .buttonStyle(.mcleanAction)
             }
             .padding(20)
         }
@@ -643,18 +665,21 @@ private struct StageRow: View {
                     Label("Restore", systemImage: "arrow.uturn.backward")
                 }
                 .disabled(!entry.canRestore)
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     manager.moveStagedToTrash(entry)
                 } label: {
                     Label("Trash", systemImage: "trash")
                 }
+                .buttonStyle(.mcleanDestructiveAction)
 
                 Button(role: .destructive) {
                     pendingPermanentDelete = entry
                 } label: {
                     Label("Delete", systemImage: "trash.slash")
                 }
+                .buttonStyle(.mcleanDestructiveAction)
             }
             .frame(maxWidth: 260, alignment: .trailing)
         } else {
@@ -663,6 +688,7 @@ private struct StageRow: View {
             } label: {
                 Label("Remove", systemImage: "minus.circle")
             }
+            .buttonStyle(.mcleanAction)
         }
     }
 }
@@ -708,6 +734,7 @@ struct TrashHistoryView: View {
                         Label("Restore", systemImage: "arrow.uturn.backward")
                     }
                     .disabled(!entry.canRestore)
+                    .buttonStyle(.mcleanAction)
                 }
                 .padding(.vertical, 4)
             }
@@ -720,6 +747,7 @@ struct TrashHistoryView: View {
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
+                .buttonStyle(.mcleanAction)
             }
             .padding(20)
         }
@@ -798,5 +826,103 @@ struct WrappingHStack: Layout {
             x += size.width
             rowHeight = max(rowHeight, size.height)
         }
+    }
+}
+
+struct MCleanActionButtonStyle: ButtonStyle {
+    enum Tone {
+        case neutral
+        case accent
+        case destructive
+        case warning
+    }
+
+    @Environment(\.isEnabled) private var isEnabled
+    let tone: Tone
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption)
+            .lineLimit(1)
+            .minimumScaleFactor(0.88)
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(foregroundColor)
+            .frame(minHeight: 30)
+            .padding(.horizontal, 10)
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(backgroundColor.opacity(configuration.isPressed ? pressedOpacity : normalOpacity))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+            }
+            .opacity(isEnabled ? 1 : 0.48)
+    }
+
+    private var foregroundColor: Color {
+        switch tone {
+        case .neutral:
+            return .primary
+        case .accent:
+            return .accentColor
+        case .destructive:
+            return .red
+        case .warning:
+            return .orange
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch tone {
+        case .neutral:
+            return .secondary
+        case .accent:
+            return .accentColor
+        case .destructive:
+            return .red
+        case .warning:
+            return .orange
+        }
+    }
+
+    private var borderColor: Color {
+        switch tone {
+        case .neutral:
+            return Color.secondary.opacity(0.12)
+        case .accent:
+            return Color.accentColor.opacity(0.35)
+        case .destructive:
+            return Color.red.opacity(0.35)
+        case .warning:
+            return Color.orange.opacity(0.35)
+        }
+    }
+
+    private var normalOpacity: Double {
+        tone == .neutral ? 0.08 : 0.14
+    }
+
+    private var pressedOpacity: Double {
+        tone == .neutral ? 0.14 : 0.22
+    }
+}
+
+extension ButtonStyle where Self == MCleanActionButtonStyle {
+    static var mcleanAction: MCleanActionButtonStyle {
+        MCleanActionButtonStyle(tone: .neutral)
+    }
+
+    static var mcleanAccentAction: MCleanActionButtonStyle {
+        MCleanActionButtonStyle(tone: .accent)
+    }
+
+    static var mcleanDestructiveAction: MCleanActionButtonStyle {
+        MCleanActionButtonStyle(tone: .destructive)
+    }
+
+    static var mcleanWarningAction: MCleanActionButtonStyle {
+        MCleanActionButtonStyle(tone: .warning)
     }
 }

@@ -26,12 +26,14 @@ struct FullDiskAccessBanner: View {
                     } label: {
                         Label("Open Settings", systemImage: "gear")
                     }
+                    .buttonStyle(.mcleanWarningAction)
 
                     Button {
                         manager.refreshFullDiskAccessStatus()
                     } label: {
                         Label("Recheck", systemImage: "arrow.clockwise")
                     }
+                    .buttonStyle(.mcleanAction)
                 }
                 .controlSize(.small)
             }

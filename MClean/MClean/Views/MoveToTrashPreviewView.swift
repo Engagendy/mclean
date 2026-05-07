@@ -90,6 +90,7 @@ struct MoveToTrashPreviewView: View {
                     isPresented = false
                 }
                 .keyboardShortcut(.cancelAction)
+                .buttonStyle(.mcleanAction)
 
                 Button {
                     if let firstHighRisk = selectedItems.first(where: { $0.risk == .high }) {
@@ -99,6 +100,7 @@ struct MoveToTrashPreviewView: View {
                     Label("Review High Risk", systemImage: "finder")
                 }
                 .disabled(highRiskCount == 0)
+                .buttonStyle(.mcleanWarningAction)
 
                 Button(role: .destructive) {
                     manager.moveSelectedToTrash()
@@ -108,6 +110,7 @@ struct MoveToTrashPreviewView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(selectedItems.allSatisfy { !$0.canMoveToTrash })
+                .buttonStyle(.mcleanDestructiveAction)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
