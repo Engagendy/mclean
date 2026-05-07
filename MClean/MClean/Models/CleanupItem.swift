@@ -234,6 +234,37 @@ struct StoredScanResults: Codable {
     let summary: ScanSummary
 }
 
+struct DuplicateReviewGroup: Identifiable, Hashable {
+    let id: String
+    let items: [CleanupItem]
+
+    var duplicateCount: Int { items.count }
+    var totalBytes: Int64 { items.reduce(0) { $0 + $1.size } }
+    var reclaimableBytes: Int64 {
+        max(Int64(items.count - 1), 0) * representativeSize
+    }
+    var representativeSize: Int64 { items.first?.size ?? 0 }
+    var name: String { items.first?.name ?? "Duplicate Group" }
+}
+
+enum DuplicateKeepStrategy: String, CaseIterable, Identifiable {
+    case newest = "Newest"
+    case oldest = "Oldest"
+    case originalFolder = "Original Folder"
+    case shortestPath = "Shortest Path"
+
+    var id: String { rawValue }
+
+    var symbolName: String {
+        switch self {
+        case .newest: return "calendar.badge.clock"
+        case .oldest: return "archivebox"
+        case .originalFolder: return "folder"
+        case .shortestPath: return "arrow.down.right.and.arrow.up.left"
+        }
+    }
+}
+
 struct TrashHistoryEntry: Identifiable, Codable, Hashable {
     var id = UUID()
     let itemName: String

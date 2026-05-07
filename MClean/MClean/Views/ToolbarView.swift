@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ToolbarView: View {
@@ -6,6 +7,7 @@ struct ToolbarView: View {
     @Binding var showingDeleteAlert: Bool
     @State private var showingTrashHistory = false
     @State private var showingStage = false
+    @State private var showingDuplicateReview = false
 
     var body: some View {
         HStack(spacing: 14) {
@@ -66,6 +68,13 @@ struct ToolbarView: View {
             }
 
             Button {
+                showingDuplicateReview = true
+            } label: {
+                Label("Duplicates", systemImage: "doc.on.doc")
+            }
+            .disabled(manager.duplicateGroups.isEmpty || isScanning)
+
+            Button {
                 showingTrashHistory = true
             } label: {
                 Label("History", systemImage: "clock.arrow.circlepath")
@@ -104,6 +113,10 @@ struct ToolbarView: View {
             StageView()
                 .environmentObject(manager)
         }
+        .sheet(isPresented: $showingDuplicateReview) {
+            DuplicateReviewView(isPresented: $showingDuplicateReview, showingDeleteAlert: $showingDeleteAlert)
+                .environmentObject(manager)
+        }
     }
 
     private var isScanning: Bool {
@@ -127,6 +140,198 @@ struct ToolbarView: View {
             return message
         }
     }
+}
+
+struct DuplicateReviewView: View {
+    @EnvironmentObject private var manager: CleanupManager
+    @Binding var isPresented: Bool
+    @Binding var showingDeleteAlert: Bool
+
+    private var selectedDuplicateCount: Int {
+        manager.items.filter {
+            $0.duplicateGroupID != nil && manager.selectedIDs.contains($0.id) && $0.canMoveToTrash
+        }.count
+    }
+
+    private var selectedDuplicateBytes: Int64 {
+        manager.items
+            .filter { $0.duplicateGroupID != nil && manager.selectedIDs.contains($0.id) && $0.canMoveToTrash }
+            .reduce(0) { $0 + $1.size }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Duplicate Review")
+                        .font(.title2.weight(.semibold))
+                    Text("\(manager.duplicateGroups.count) groups, \(ByteCount.string(totalReclaimableBytes)) potential cleanup")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(20)
+
+            Divider()
+
+            if manager.duplicateGroups.isEmpty {
+                ContentUnavailableView("No Duplicates", systemImage: "doc.on.doc", description: Text("Run a scan with Duplicates enabled to review identical files."))
+            } else {
+                List(manager.duplicateGroups) { group in
+                    DuplicateGroupSection(group: group)
+                }
+            }
+
+            Divider()
+
+            HStack {
+                Text("\(selectedDuplicateCount) selected, \(ByteCount.string(selectedDuplicateBytes))")
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Close") {
+                    isPresented = false
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button {
+                    manager.moveSelectedToStage()
+                    isPresented = false
+                } label: {
+                    Label("Move Selected to Stage", systemImage: "tray.and.arrow.down")
+                }
+                .disabled(selectedDuplicateCount == 0)
+
+                Button(role: .destructive) {
+                    showingDeleteAlert = true
+                    isPresented = false
+                } label: {
+                    Label("Review Trash", systemImage: "trash")
+                }
+                .disabled(selectedDuplicateCount == 0)
+            }
+            .padding(20)
+        }
+        .frame(minWidth: 920, minHeight: 620)
+    }
+
+    private var totalReclaimableBytes: Int64 {
+        manager.duplicateGroups.reduce(0) { $0 + $1.reclaimableBytes }
+    }
+}
+
+private struct DuplicateGroupSection: View {
+    @EnvironmentObject private var manager: CleanupManager
+    let group: DuplicateReviewGroup
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(group.name)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text("\(group.duplicateCount) identical files, \(ByteCount.string(group.representativeSize)) each, \(ByteCount.string(group.reclaimableBytes)) reclaimable")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Menu {
+                        ForEach(DuplicateKeepStrategy.allCases) { strategy in
+                            Button {
+                                manager.selectDuplicates(in: group, keeping: strategy)
+                            } label: {
+                                Label("Keep \(strategy.rawValue)", systemImage: strategy.symbolName)
+                            }
+                        }
+                        Divider()
+                        Button {
+                            manager.clearDuplicateSelection(in: group)
+                        } label: {
+                            Label("Clear Group Selection", systemImage: "xmark.circle")
+                        }
+                    } label: {
+                        Label("Select Duplicates", systemImage: "checkmark.circle")
+                    }
+                }
+
+                ForEach(group.items) { item in
+                    DuplicateItemRow(item: item)
+                }
+            }
+            .padding(.vertical, 6)
+        }
+    }
+}
+
+private struct DuplicateItemRow: View {
+    @EnvironmentObject private var manager: CleanupManager
+    let item: CleanupItem
+
+    private var isSelected: Binding<Bool> {
+        Binding(
+            get: { manager.selectedIDs.contains(item.id) },
+            set: { _ in manager.toggleSelection(for: item) }
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Toggle("", isOn: isSelected)
+                .labelsHidden()
+                .disabled(!item.canMoveToTrash)
+                .frame(width: 24)
+
+            Image(systemName: item.isDirectory ? "folder" : "doc")
+                .foregroundStyle(item.isDirectory ? .blue : .secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.path)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text("\(ByteCount.string(item.size)) - \(item.modifiedAt.map(DuplicateReviewView.dateFormatter.string(from:)) ?? "Unknown date")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                manager.showDetails(for: item)
+            } label: {
+                Image(systemName: "info.circle")
+            }
+            .buttonStyle(.borderless)
+            .help("Show Details")
+
+            Button {
+                manager.reveal(item)
+            } label: {
+                Image(systemName: "finder")
+            }
+            .buttonStyle(.borderless)
+            .disabled(!item.existsOnDisk)
+            .help("Reveal in Finder")
+
+            Button {
+                NSWorkspace.shared.open(item.url)
+            } label: {
+                Image(systemName: "eye")
+            }
+            .buttonStyle(.borderless)
+            .disabled(!item.existsOnDisk)
+            .help("Preview")
+        }
+    }
+}
+
+private extension DuplicateReviewView {
+    static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }()
 }
 
 struct StageView: View {

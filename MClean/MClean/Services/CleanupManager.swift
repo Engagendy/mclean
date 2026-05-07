@@ -57,6 +57,22 @@ final class CleanupManager: ObservableObject {
         items.filter { !$0.canMoveToTrash }.count
     }
 
+    var duplicateGroups: [DuplicateReviewGroup] {
+        Dictionary(grouping: items.filter { $0.duplicateGroupID != nil }, by: { $0.duplicateGroupID ?? "" })
+            .compactMap { groupID, groupItems in
+                let existingItems = groupItems.filter(\.existsOnDisk)
+                return existingItems.count > 1
+                    ? DuplicateReviewGroup(id: groupID, items: existingItems.sorted { $0.path < $1.path })
+                    : nil
+            }
+            .sorted {
+                if $0.reclaimableBytes != $1.reclaimableBytes {
+                    return $0.reclaimableBytes > $1.reclaimableBytes
+                }
+                return $0.name < $1.name
+            }
+    }
+
     var lastScanDescription: String? {
         guard let lastScannedAt else { return nil }
         return Self.scanDateFormatter.string(from: lastScannedAt)
@@ -272,6 +288,21 @@ final class CleanupManager: ObservableObject {
 
     func select(_ visibleItems: [CleanupItem]) {
         selectedIDs.formUnion(visibleItems.filter(\.canMoveToTrash).map(\.id))
+    }
+
+    func selectDuplicates(in group: DuplicateReviewGroup, keeping strategy: DuplicateKeepStrategy) {
+        guard let keeper = duplicateKeeper(in: group, strategy: strategy) else { return }
+        let groupIDs = Set(group.items.map(\.id))
+        selectedIDs.subtract(groupIDs)
+        let removableIDs = group.items
+            .filter { $0.id != keeper.id && $0.canMoveToTrash }
+            .map(\.id)
+        selectedIDs.formUnion(removableIDs)
+        lastDeletionMessage = "Selected \(removableIDs.count) duplicate item\(removableIDs.count == 1 ? "" : "s"); keeping \(keeper.name)."
+    }
+
+    func clearDuplicateSelection(in group: DuplicateReviewGroup) {
+        selectedIDs.subtract(group.items.map(\.id))
     }
 
     func clearSelection() {
@@ -495,6 +526,43 @@ final class CleanupManager: ObservableObject {
         selectedIDs = selectedIDs.intersection(Set(items.map(\.id)))
         summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
         ScanResultsStore.save(items: items, summary: summary)
+    }
+
+    private func duplicateKeeper(in group: DuplicateReviewGroup, strategy: DuplicateKeepStrategy) -> CleanupItem? {
+        switch strategy {
+        case .newest:
+            return group.items.max { lhs, rhs in
+                (lhs.modifiedAt ?? .distantPast) < (rhs.modifiedAt ?? .distantPast)
+            }
+        case .oldest:
+            return group.items.min { lhs, rhs in
+                (lhs.modifiedAt ?? .distantFuture) < (rhs.modifiedAt ?? .distantFuture)
+            }
+        case .originalFolder:
+            return group.items.sorted { lhs, rhs in
+                let lhsRank = originalFolderRank(lhs)
+                let rhsRank = originalFolderRank(rhs)
+                if lhsRank != rhsRank { return lhsRank < rhsRank }
+                return lhs.path.count < rhs.path.count
+            }.first
+        case .shortestPath:
+            return group.items.min { lhs, rhs in
+                if lhs.path.count != rhs.path.count { return lhs.path.count < rhs.path.count }
+                return lhs.path < rhs.path
+            }
+        }
+    }
+
+    private func originalFolderRank(_ item: CleanupItem) -> Int {
+        let path = item.path
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix("\(home)/Documents") { return 0 }
+        if path.hasPrefix("\(home)/Desktop") { return 1 }
+        if path.hasPrefix("\(home)/Pictures") { return 2 }
+        if path.hasPrefix("\(home)/Movies") { return 3 }
+        if path.hasPrefix("\(home)/Music") { return 4 }
+        if path.hasPrefix("\(home)/Downloads") { return 8 }
+        return 5
     }
 
     private static let scanDateFormatter: DateFormatter = {

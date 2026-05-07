@@ -90,11 +90,11 @@ Current foundation:
 
 Implementation tasks:
 
-- `[ ]` Add duplicate group view with one group per hash.
-- `[ ]` Add preview support for duplicate files.
-- `[ ]` Add helper selection actions: keep newest, keep oldest, keep file in original folder, keep shortest path.
-- `[ ]` Prevent selecting all files in a duplicate group.
-- `[ ]` Add per-group restore/stage/delete workflow compatibility.
+- `[x]` Add duplicate group view with one group per hash.
+- `[x]` Add preview support for duplicate files.
+- `[x]` Add helper selection actions: keep newest, keep oldest, keep file in original folder, keep shortest path.
+- `[x]` Prevent selecting all files in a duplicate group.
+- `[x]` Add per-group restore/stage/delete workflow compatibility.
 - `[ ]` Add tests for duplicate grouping and keep-helper selection rules.
 
 Acceptance criteria:
