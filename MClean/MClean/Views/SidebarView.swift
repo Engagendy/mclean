@@ -58,14 +58,14 @@ struct SidebarView: View {
                     Text("Large threshold")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Stepper("\(manager.options.largeFileThresholdMB) MB", value: $manager.options.largeFileThresholdMB, in: 100...5_000, step: 100)
+                    Stepper("\(manager.options.largeFileThresholdMB) MB", value: intOptionBinding(\.largeFileThresholdMB), in: 100...5_000, step: 100)
                 }
 
                 VStack(alignment: .leading) {
                     Text("Old file age")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Stepper("\(manager.options.oldFileAgeDays) days", value: $manager.options.oldFileAgeDays, in: 90...2_000, step: 30)
+                    Stepper("\(manager.options.oldFileAgeDays) days", value: intOptionBinding(\.oldFileAgeDays), in: 90...2_000, step: 30)
                 }
             }
         }
@@ -76,7 +76,17 @@ struct SidebarView: View {
         Binding(
             get: { manager.options[keyPath: keyPath] },
             set: { value in
-                manager.options[keyPath: keyPath] = value
+                manager.updateOptions { $0[keyPath: keyPath] = value }
+                manager.markCustomScanMode()
+            }
+        )
+    }
+
+    private func intOptionBinding(_ keyPath: WritableKeyPath<ScanOptions, Int>) -> Binding<Int> {
+        Binding(
+            get: { manager.options[keyPath: keyPath] },
+            set: { value in
+                manager.updateOptions { $0[keyPath: keyPath] = value }
                 manager.markCustomScanMode()
             }
         )

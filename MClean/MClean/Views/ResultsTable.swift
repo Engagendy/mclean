@@ -45,6 +45,27 @@ struct ResultsTable: View {
                             .lineLimit(1)
                     }
                 }
+                .contextMenu {
+                    Button {
+                        manager.reveal(item)
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "finder")
+                    }
+                    .disabled(!item.existsOnDisk)
+
+                    Button {
+                        copyPath(item.path)
+                    } label: {
+                        Label("Copy Path", systemImage: "doc.on.doc")
+                    }
+
+                    Button {
+                        manager.excludeParentFolder(of: item)
+                    } label: {
+                        Label("Exclude Parent Folder", systemImage: "folder.badge.minus")
+                    }
+                    .disabled(!item.existsOnDisk)
+                }
             }
             .width(min: 280, ideal: 420)
 
@@ -140,6 +161,11 @@ struct ResultsTable: View {
             return message
         }
         return "Preparing scan"
+    }
+
+    private func copyPath(_ path: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
     }
 
     private static let dateFormatter: DateFormatter = {

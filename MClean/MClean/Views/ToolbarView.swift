@@ -61,6 +61,10 @@ struct ToolbarView: View {
             }
             .disabled(manager.missingItemCount == 0 || isScanning)
 
+            SettingsLink {
+                Label("Settings", systemImage: "gearshape")
+            }
+
             Button {
                 showingTrashHistory = true
             } label: {

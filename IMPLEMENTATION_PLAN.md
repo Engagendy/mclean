@@ -107,13 +107,13 @@ Acceptance criteria:
 
 ### Settings Screen
 
-Status: `[ ]`
+Status: `[~]`
 
 Implementation tasks:
 
-- `[ ]` Add a macOS Settings scene or in-app settings sheet.
-- `[ ]` Move scan options into Settings where they persist between app launches.
-- `[ ]` Add exclusions management.
+- `[x]` Add a macOS Settings scene or in-app settings sheet.
+- `[x]` Move scan options into Settings where they persist between app launches.
+- `[x]` Add exclusions management.
 - `[ ]` Add Stage preferences such as reminder age and default action visibility.
 - `[ ]` Add browser and developer module toggles.
 
@@ -134,7 +134,7 @@ Implementation tasks:
 
 - `[ ]` Add Developer profile.
 - `[ ]` Add Downloads Review profile.
-- `[ ]` Persist last selected profile.
+- `[x]` Persist last selected profile.
 - `[ ]` Support user-created custom profiles.
 - `[ ]` Show which categories each profile includes.
 
@@ -145,19 +145,20 @@ Acceptance criteria:
 
 ### Search And Advanced Filters
 
-Status: `[ ]`
+Status: `[~]`
 
 Implementation tasks:
 
-- `[ ]` Add search field for name and path.
-- `[ ]` Add filters for size range, modified date, category, risk, protection, source type, and path contains.
-- `[ ]` Add filter chips or a compact filter summary.
-- `[ ]` Make selection actions operate only on visible filtered results.
+- `[x]` Add search field for name and path.
+- `[~]` Add filters for size range, modified date, category, risk, protection, source type, and path contains.
+- `[x]` Add filter chips or a compact filter summary.
+- `[x]` Make selection actions operate only on visible filtered results.
 
 Acceptance criteria:
 
 - Search and filters combine predictably.
 - Result counts and selected bytes reflect the active filter.
+- Source type filtering remains pending until source metadata is added.
 
 ### File Preview
 
@@ -243,9 +244,9 @@ Current foundation:
 
 Implementation tasks:
 
-- `[ ]` Add context menu actions to result rows.
-- `[ ]` Add copy path action.
-- `[ ]` Add exclude parent folder action.
+- `[x]` Add context menu actions to result rows.
+- `[x]` Add copy path action.
+- `[x]` Add exclude parent folder action.
 - `[ ]` Add reveal original path for staged entries.
 - `[ ]` Add reveal staged file action.
 

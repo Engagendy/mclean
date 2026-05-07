@@ -4,6 +4,7 @@ enum ScanResultsStore {
     private static let fileName = "last-scan-results.json"
     private static let historyFileName = "trash-history.json"
     private static let stageFileName = "stage-items.json"
+    private static let preferencesFileName = "preferences.json"
 
     static func load() -> StoredScanResults? {
         guard let url = try? appSupportDirectory().appendingPathComponent(fileName) else { return nil }
@@ -81,4 +82,29 @@ enum ScanResultsStore {
             return []
         }
     }
+
+    static func savePreferences(_ preferences: CleanupPreferences) {
+        do {
+            let url = try appSupportDirectory().appendingPathComponent(preferencesFileName)
+            let data = try JSONEncoder().encode(preferences)
+            try data.write(to: url, options: [.atomic])
+        } catch {
+            // Preferences fall back to defaults when persistence is unavailable.
+        }
+    }
+
+    static func loadPreferences() -> CleanupPreferences {
+        do {
+            let url = try appSupportDirectory().appendingPathComponent(preferencesFileName)
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode(CleanupPreferences.self, from: data)
+        } catch {
+            return CleanupPreferences()
+        }
+    }
+}
+
+struct CleanupPreferences: Codable, Equatable {
+    var scanMode: ScanMode = .quick
+    var options = ScanOptions()
 }

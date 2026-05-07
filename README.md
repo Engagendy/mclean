@@ -74,6 +74,8 @@ MClean can scan normal user folders without Full Disk Access. macOS blocks some 
 - Full Disk Access guidance for protected macOS locations.
 - Review-before-delete sheet with high-risk and missing-file warnings.
 - Stage workflow for testing after files are moved out of their original locations.
+- Settings with persisted scan options and folder exclusions.
+- Search and advanced filters for size, modified date, risk, protection, and path.
 - Never-delete protection for sensitive macOS and user-library locations.
 - File details panel with risk, protection, duplicate, and app-leftover metadata.
 - Trash history with restore support for recently moved items.

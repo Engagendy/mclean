@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-struct ScanOptions: Equatable {
+struct ScanOptions: Equatable, Codable {
     var includeCaches = true
     var includeDownloads = true
     var includeTemporary = true
@@ -15,6 +15,7 @@ struct ScanOptions: Equatable {
     var largeFileThresholdMB = 500
     var oldFileAgeDays = 365
     var maxResults = 1_500
+    var excludedPaths: [String] = []
 }
 
 struct ScanResult {
@@ -35,6 +36,7 @@ actor FileScanner {
         var items: [CleanupItem] = []
         var seenPaths = Set<String>()
         var summary = ScanSummary()
+        let excludedPaths = normalizedExcludedPaths(options.excludedPaths)
 
         if options.includeCaches {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
@@ -49,6 +51,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -71,6 +74,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -89,6 +93,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -107,6 +112,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -125,6 +131,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -143,6 +150,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -156,6 +164,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -174,6 +183,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -192,6 +202,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -210,6 +221,7 @@ actor FileScanner {
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
+                excludedPaths: excludedPaths,
                 onItem: onItem,
                 onSummary: onSummary
             )
@@ -239,10 +251,11 @@ actor FileScanner {
         items: inout [CleanupItem],
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
+        excludedPaths: [String],
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
-        for root in roots where fileManager.fileExists(atPath: root.path) {
+        for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
             if Task.isCancelled { return }
             guard let children = try? fileManager.contentsOfDirectory(
                 at: root,
@@ -255,6 +268,7 @@ actor FileScanner {
 
             for child in children {
                 if Task.isCancelled { return }
+                guard !isExcluded(child, excludedPaths: excludedPaths) else { continue }
                 guard !isSystemCritical(child), seenPaths.insert(child.path).inserted else { continue }
                 let size = directorySize(child, maxDepth: maxDepth, summary: &summary)
                 guard size >= minSize else { continue }
@@ -287,10 +301,11 @@ actor FileScanner {
         items: inout [CleanupItem],
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
+        excludedPaths: [String],
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
-        for root in roots where fileManager.fileExists(atPath: root.path) {
+        for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
             if Task.isCancelled { return }
             guard !isSystemCritical(root), seenPaths.insert(root.path).inserted else { continue }
             let values = try? root.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
@@ -330,13 +345,14 @@ actor FileScanner {
         items: inout [CleanupItem],
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
+        excludedPaths: [String],
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
         let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .fileAllocatedSizeKey, .totalFileAllocatedSizeKey, .contentModificationDateKey]
         let cutoff = olderThanDays.map { Calendar.current.date(byAdding: .day, value: -$0, to: Date()) ?? Date.distantPast }
 
-        for root in roots where fileManager.fileExists(atPath: root.path) {
+        for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
             guard let enumerator = fileManager.enumerator(
                 at: root,
                 includingPropertiesForKeys: keys,
@@ -350,6 +366,12 @@ actor FileScanner {
             while let nextURL = enumerator.nextObject() as? URL {
                 if Task.isCancelled { return }
                 let url = nextURL
+                if isExcluded(url, excludedPaths: excludedPaths) {
+                    if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                        enumerator.skipDescendants()
+                    }
+                    continue
+                }
                 if isExcludedFromDeepScan(url) {
                     enumerator.skipDescendants()
                     continue
@@ -400,13 +422,14 @@ actor FileScanner {
         items: inout [CleanupItem],
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
+        excludedPaths: [String],
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileAllocatedSizeKey, .totalFileAllocatedSizeKey, .contentModificationDateKey]
         var filesBySize: [Int64: [URL]] = [:]
 
-        for root in roots where fileManager.fileExists(atPath: root.path) {
+        for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
             guard let enumerator = fileManager.enumerator(
                 at: root,
                 includingPropertiesForKeys: keys,
@@ -419,6 +442,12 @@ actor FileScanner {
 
             while let url = enumerator.nextObject() as? URL {
                 if Task.isCancelled { return }
+                if isExcluded(url, excludedPaths: excludedPaths) {
+                    if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                        enumerator.skipDescendants()
+                    }
+                    continue
+                }
                 guard !isProtectedPath(url), !isSystemCritical(url) else { continue }
                 guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else {
                     summary.skippedItems += 1
@@ -474,6 +503,7 @@ actor FileScanner {
         items: inout [CleanupItem],
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
+        excludedPaths: [String],
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
@@ -486,7 +516,7 @@ actor FileScanner {
             home.appendingPathComponent("Library/WebKit")
         ]
 
-        for root in roots where fileManager.fileExists(atPath: root.path) {
+        for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
             if Task.isCancelled { return }
             guard let children = try? fileManager.contentsOfDirectory(
                 at: root,
@@ -499,6 +529,7 @@ actor FileScanner {
 
             for child in children {
                 if Task.isCancelled { return }
+                guard !isExcluded(child, excludedPaths: excludedPaths) else { continue }
                 guard let bundleID = probableBundleID(from: child), !installedBundleIDs.contains(bundleID) else { continue }
                 guard !isProtectedPath(child), seenPaths.insert(child.path).inserted else { continue }
                 let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
@@ -569,6 +600,22 @@ actor FileScanner {
             "/Library/Application Support/MobileSync/"
         ]
         return excludedFragments.contains { path.contains($0) }
+    }
+
+    private func normalizedExcludedPaths(_ paths: [String]) -> [String] {
+        paths
+            .map { NSString(string: $0).expandingTildeInPath }
+            .map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+            .filter { !$0.isEmpty && $0 != "/" }
+            .sorted()
+    }
+
+    private func isExcluded(_ url: URL, excludedPaths: [String]) -> Bool {
+        guard !excludedPaths.isEmpty else { return false }
+        let path = url.standardizedFileURL.path
+        return excludedPaths.contains { excludedPath in
+            path == excludedPath || path.hasPrefix("\(excludedPath)/")
+        }
     }
 
     private func isSystemCritical(_ url: URL) -> Bool {

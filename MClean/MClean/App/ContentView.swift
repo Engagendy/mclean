@@ -5,14 +5,17 @@ struct ContentView: View {
     @State private var selectedDestination = SidebarDestination.dashboard
     @State private var showingDeleteAlert = false
     @State private var isSidebarVisible = true
+    @State private var findingsFilter = FindingsFilter()
 
     private var filteredItems: [CleanupItem] {
+        let baseItems: [CleanupItem]
         switch selectedDestination {
         case .dashboard, .allFindings:
-            return manager.items
+            baseItems = manager.items
         case .category(let category):
-            return manager.items.filter { $0.category == category }
+            baseItems = manager.items.filter { $0.category == category }
         }
+        return baseItems.filter { findingsFilter.matches($0) }
     }
 
     var body: some View {
@@ -51,7 +54,12 @@ struct ContentView: View {
             case .dashboard:
                 DashboardDetailView(showingDeleteAlert: $showingDeleteAlert)
             case .allFindings, .category:
-                FindingsDetailView(visibleItems: filteredItems, showingDeleteAlert: $showingDeleteAlert)
+                FindingsDetailView(
+                    visibleItems: filteredItems,
+                    totalItems: manager.items.count,
+                    filter: $findingsFilter,
+                    showingDeleteAlert: $showingDeleteAlert
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -66,8 +74,79 @@ struct ContentView: View {
     }
 }
 
+struct FindingsFilter: Equatable {
+    var searchText = ""
+    var pathText = ""
+    var minimumSizeMB = 0
+    var risk: CleanupRisk?
+    var protection: CleanupProtection?
+    var modifiedDate = ModifiedDateFilter.any
+
+    var isActive: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            !pathText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            minimumSizeMB > 0 ||
+            risk != nil ||
+            protection != nil ||
+            modifiedDate != .any
+    }
+
+    func matches(_ item: CleanupItem) -> Bool {
+        let normalizedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+        if !normalizedSearch.isEmpty {
+            let searchable = "\(item.name) \(item.path) \(item.reason)".localizedLowercase
+            guard searchable.contains(normalizedSearch) else { return false }
+        }
+
+        let normalizedPath = pathText.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
+        if !normalizedPath.isEmpty {
+            guard item.path.localizedLowercase.contains(normalizedPath) else { return false }
+        }
+
+        if minimumSizeMB > 0 {
+            guard item.size >= Int64(minimumSizeMB) * 1_024 * 1_024 else { return false }
+        }
+
+        if let risk, item.risk != risk { return false }
+        if let protection, item.protection != protection { return false }
+        if !modifiedDate.matches(item.modifiedAt) { return false }
+        return true
+    }
+}
+
+enum ModifiedDateFilter: String, CaseIterable, Identifiable {
+    case any = "Any"
+    case last30Days = "Last 30 Days"
+    case last90Days = "Last 90 Days"
+    case lastYear = "Last Year"
+    case olderThanYear = "Older Than 1 Year"
+
+    var id: String { rawValue }
+
+    func matches(_ date: Date?) -> Bool {
+        guard self != .any else { return true }
+        guard let date else { return false }
+        let calendar = Calendar.current
+        let now = Date()
+        switch self {
+        case .any:
+            return true
+        case .last30Days:
+            return date >= (calendar.date(byAdding: .day, value: -30, to: now) ?? .distantPast)
+        case .last90Days:
+            return date >= (calendar.date(byAdding: .day, value: -90, to: now) ?? .distantPast)
+        case .lastYear:
+            return date >= (calendar.date(byAdding: .year, value: -1, to: now) ?? .distantPast)
+        case .olderThanYear:
+            return date < (calendar.date(byAdding: .year, value: -1, to: now) ?? .distantPast)
+        }
+    }
+}
+
 struct FindingsDetailView: View {
     let visibleItems: [CleanupItem]
+    let totalItems: Int
+    @Binding var filter: FindingsFilter
     @Binding var showingDeleteAlert: Bool
 
     var body: some View {
@@ -76,9 +155,101 @@ struct FindingsDetailView: View {
             Divider()
             FullDiskAccessBanner()
             Divider()
+            FindingsFilterBar(filter: $filter, visibleItems: visibleItems, totalCount: totalItems)
+            Divider()
             ResultsTable(items: visibleItems)
             StatusBar()
         }
+    }
+}
+
+struct FindingsFilterBar: View {
+    @EnvironmentObject private var manager: CleanupManager
+    @Binding var filter: FindingsFilter
+    let visibleItems: [CleanupItem]
+    let totalCount: Int
+
+    private var visibleBytes: Int64 {
+        visibleItems.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
+    }
+
+    private var selectedVisibleBytes: Int64 {
+        visibleItems
+            .filter { manager.selectedIDs.contains($0.id) && $0.canMoveToTrash }
+            .reduce(0) { $0 + $1.size }
+    }
+
+    private var selectedVisibleCount: Int {
+        visibleItems.filter { manager.selectedIDs.contains($0.id) && $0.canMoveToTrash }.count
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
+                    .font(.headline)
+
+                TextField("Search name, path, or reason", text: $filter.searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 220)
+
+                TextField("Path contains", text: $filter.pathText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 180)
+
+                Stepper("Min \(filter.minimumSizeMB) MB", value: $filter.minimumSizeMB, in: 0...10_000, step: 100)
+                    .frame(width: 150)
+
+                Spacer()
+
+                Text("\(visibleItems.count) of \(totalCount)")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+
+            HStack(spacing: 10) {
+                Picker("Risk", selection: $filter.risk) {
+                    Text("Any Risk").tag(Optional<CleanupRisk>.none)
+                    ForEach(CleanupRisk.allCases, id: \.self) { risk in
+                        Text(risk.rawValue).tag(Optional(risk))
+                    }
+                }
+                .frame(width: 150)
+
+                Picker("Protection", selection: $filter.protection) {
+                    Text("Any Protection").tag(Optional<CleanupProtection>.none)
+                    ForEach(CleanupProtection.allCases, id: \.self) { protection in
+                        Text(protection.rawValue).tag(Optional(protection))
+                    }
+                }
+                .frame(width: 190)
+
+                Picker("Modified", selection: $filter.modifiedDate) {
+                    ForEach(ModifiedDateFilter.allCases) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+                .frame(width: 190)
+
+                Spacer()
+
+                Text("\(ByteCount.string(visibleBytes)) visible")
+                    .foregroundStyle(.secondary)
+
+                Text("\(selectedVisibleCount) selected, \(ByteCount.string(selectedVisibleBytes))")
+                    .foregroundStyle(.secondary)
+
+                Button {
+                    filter = FindingsFilter()
+                } label: {
+                    Label("Clear Filters", systemImage: "xmark.circle")
+                }
+                .disabled(!filter.isActive)
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(.bar)
     }
 }
 
@@ -114,6 +285,12 @@ struct DashboardDetailView: View {
                 .keyboardShortcut("r", modifiers: [.command])
 
                 Menu {
+                    SettingsLink {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+
+                    Divider()
+
                     Button {
                         manager.selectRecommended()
                         showingDeleteAlert = true

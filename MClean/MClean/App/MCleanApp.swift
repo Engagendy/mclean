@@ -24,6 +24,157 @@ struct MCleanApp: App {
                 .keyboardShortcut("r", modifiers: [.command])
             }
         }
+
+        Settings {
+            SettingsView()
+                .environmentObject(manager)
+                .frame(minWidth: 620, minHeight: 520)
+        }
+    }
+}
+
+struct SettingsView: View {
+    @EnvironmentObject private var manager: CleanupManager
+    @State private var manualExclusionPath = ""
+
+    var body: some View {
+        TabView {
+            scanSettings
+                .tabItem {
+                    Label("Scan", systemImage: "slider.horizontal.3")
+                }
+
+            exclusionsSettings
+                .tabItem {
+                    Label("Exclusions", systemImage: "folder.badge.minus")
+                }
+        }
+        .padding(20)
+    }
+
+    private var scanSettings: some View {
+        Form {
+            Section("Profile") {
+                Picker("Scan mode", selection: Binding(
+                    get: { manager.scanMode },
+                    set: { manager.applyScanMode($0) }
+                )) {
+                    ForEach(ScanMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                Text(manager.scanMode.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Categories") {
+                Toggle("Caches", isOn: boolOptionBinding(\.includeCaches))
+                Toggle("Downloads", isOn: boolOptionBinding(\.includeDownloads))
+                Toggle("Temporary", isOn: boolOptionBinding(\.includeTemporary))
+                Toggle("Large files", isOn: boolOptionBinding(\.includeLargeFiles))
+                Toggle("Duplicates", isOn: boolOptionBinding(\.includeDuplicates))
+                Toggle("Old files", isOn: boolOptionBinding(\.includeOldFiles))
+                Toggle("Developer data", isOn: boolOptionBinding(\.includeDeveloperData))
+                Toggle("App leftovers", isOn: boolOptionBinding(\.includeAppLeftovers))
+                Toggle("App support", isOn: boolOptionBinding(\.includeAppSupport))
+                Toggle("System storage", isOn: boolOptionBinding(\.includeSystemStorage))
+            }
+
+            Section("Limits") {
+                Stepper("\(manager.options.largeFileThresholdMB) MB large-file threshold", value: intOptionBinding(\.largeFileThresholdMB), in: 100...5_000, step: 100)
+                Stepper("\(manager.options.oldFileAgeDays) days old-file age", value: intOptionBinding(\.oldFileAgeDays), in: 90...2_000, step: 30)
+                Stepper("\(manager.options.maxResults) maximum results", value: intOptionBinding(\.maxResults), in: 250...10_000, step: 250)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var exclusionsSettings: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Scan Exclusions")
+                    .font(.title3.weight(.semibold))
+                Text("Excluded folders are skipped during scans and removed from current findings.")
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                TextField("Folder path", text: $manualExclusionPath)
+                    .textFieldStyle(.roundedBorder)
+                Button {
+                    chooseExclusionFolder()
+                } label: {
+                    Label("Choose", systemImage: "folder")
+                }
+                Button {
+                    manager.addExcludedPath(manualExclusionPath)
+                    manager.markCustomScanMode()
+                    manualExclusionPath = ""
+                } label: {
+                    Label("Add", systemImage: "plus")
+                }
+                .disabled(manualExclusionPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            Divider()
+
+            if manager.options.excludedPaths.isEmpty {
+                ContentUnavailableView("No Exclusions", systemImage: "folder.badge.minus", description: Text("Add folders that MClean should never scan."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(manager.options.excludedPaths, id: \.self) { path in
+                    HStack(spacing: 10) {
+                        Image(systemName: "folder")
+                            .foregroundStyle(.blue)
+                        Text(path)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Button(role: .destructive) {
+                            manager.removeExcludedPath(path)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Remove Exclusion")
+                    }
+                    .padding(.vertical, 3)
+                }
+            }
+        }
+    }
+
+    private func chooseExclusionFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Add Exclusion"
+        if panel.runModal() == .OK, let url = panel.url {
+            manager.addExcludedPath(url.path)
+            manager.markCustomScanMode()
+        }
+    }
+
+    private func boolOptionBinding(_ keyPath: WritableKeyPath<ScanOptions, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { manager.options[keyPath: keyPath] },
+            set: { value in
+                manager.updateOptions { $0[keyPath: keyPath] = value }
+                manager.markCustomScanMode()
+            }
+        )
+    }
+
+    private func intOptionBinding(_ keyPath: WritableKeyPath<ScanOptions, Int>) -> Binding<Int> {
+        Binding(
+            get: { manager.options[keyPath: keyPath] },
+            set: { value in
+                manager.updateOptions { $0[keyPath: keyPath] = value }
+                manager.markCustomScanMode()
+            }
+        )
     }
 }
 

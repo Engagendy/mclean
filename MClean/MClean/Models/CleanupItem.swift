@@ -235,7 +235,7 @@ enum ScanState: Equatable {
     case failed(String)
 }
 
-enum ScanMode: String, CaseIterable, Identifiable {
+enum ScanMode: String, CaseIterable, Identifiable, Codable {
     case quick = "Quick"
     case deep = "Deep"
     case custom = "Custom"

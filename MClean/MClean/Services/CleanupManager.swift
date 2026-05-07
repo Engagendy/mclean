@@ -3,8 +3,18 @@ import Foundation
 
 @MainActor
 final class CleanupManager: ObservableObject {
-    @Published var options = ScanOptions()
-    @Published var scanMode: ScanMode = .quick
+    @Published var options = ScanOptions() {
+        didSet {
+            guard isReadyToPersistPreferences else { return }
+            savePreferences()
+        }
+    }
+    @Published var scanMode: ScanMode = .quick {
+        didSet {
+            guard isReadyToPersistPreferences else { return }
+            savePreferences()
+        }
+    }
     @Published var items: [CleanupItem] = []
     @Published var selectedIDs = Set<CleanupItem.ID>()
     @Published var summary = ScanSummary()
@@ -19,6 +29,7 @@ final class CleanupManager: ObservableObject {
     private let scanner = FileScanner()
     private var lastScannedAt: Date?
     private var scanTask: Task<Void, Never>?
+    private var isReadyToPersistPreferences = false
 
     var selectedItems: [CleanupItem] {
         items.filter { selectedIDs.contains($0.id) }
@@ -52,6 +63,9 @@ final class CleanupManager: ObservableObject {
     }
 
     init() {
+        let preferences = ScanResultsStore.loadPreferences()
+        options = preferences.options
+        scanMode = preferences.scanMode
         if let stored = ScanResultsStore.load() {
             items = stored.items
             summary = stored.summary
@@ -62,6 +76,7 @@ final class CleanupManager: ObservableObject {
         trashHistory = ScanResultsStore.loadTrashHistory()
         stageEntries = ScanResultsStore.loadStageEntries()
         refreshDiskSpace()
+        isReadyToPersistPreferences = true
     }
 
     func scan() {
@@ -156,8 +171,39 @@ final class CleanupManager: ObservableObject {
         scanMode = .custom
     }
 
+    func updateOptions(_ update: (inout ScanOptions) -> Void) {
+        var next = options
+        update(&next)
+        options = next
+    }
+
+    func addExcludedPath(_ path: String) {
+        let normalized = normalizedPath(path)
+        guard !normalized.isEmpty, normalized != "/" else { return }
+        guard !options.excludedPaths.contains(normalized) else { return }
+        updateOptions { options in
+            options.excludedPaths.append(normalized)
+            options.excludedPaths.sort()
+        }
+        removeItemsExcludedByPreferences()
+        lastDeletionMessage = "Excluded \(normalized)."
+    }
+
+    func removeExcludedPath(_ path: String) {
+        updateOptions { options in
+            options.excludedPaths.removeAll { $0 == path }
+        }
+        lastDeletionMessage = "Removed scan exclusion."
+    }
+
+    func excludeParentFolder(of item: CleanupItem) {
+        addExcludedPath(item.url.deletingLastPathComponent().path)
+        markCustomScanMode()
+    }
+
     private func appendStreamedItem(_ item: CleanupItem) {
         guard !items.contains(where: { $0.path == item.path }) else { return }
+        guard !isExcludedByPreferences(item.url) else { return }
         items.append(item)
         if items.count > options.maxResults {
             items.sort { $0.size > $1.size }
@@ -399,6 +445,30 @@ final class CleanupManager: ObservableObject {
             return
         }
         try? FileManager.default.removeItem(at: container)
+    }
+
+    private func savePreferences() {
+        ScanResultsStore.savePreferences(CleanupPreferences(scanMode: scanMode, options: options))
+    }
+
+    private func normalizedPath(_ path: String) -> String {
+        let expanded = NSString(string: path.trimmingCharacters(in: .whitespacesAndNewlines)).expandingTildeInPath
+        guard !expanded.isEmpty else { return "" }
+        return URL(fileURLWithPath: expanded).standardizedFileURL.path
+    }
+
+    private func isExcludedByPreferences(_ url: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        return options.excludedPaths.contains { excludedPath in
+            path == excludedPath || path.hasPrefix("\(excludedPath)/")
+        }
+    }
+
+    private func removeItemsExcludedByPreferences() {
+        items.removeAll { isExcludedByPreferences($0.url) }
+        selectedIDs = selectedIDs.intersection(Set(items.map(\.id)))
+        summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
+        ScanResultsStore.save(items: items, summary: summary)
     }
 
     private static let scanDateFormatter: DateFormatter = {
