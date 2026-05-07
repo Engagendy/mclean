@@ -297,6 +297,14 @@ struct StageEntry: Identifiable, Codable, Hashable {
     var existsInStage: Bool {
         FileManager.default.fileExists(atPath: stagedURL.path)
     }
+
+    func ageDays(on date: Date = Date()) -> Int {
+        Calendar.current.dateComponents([.day], from: stagedAt, to: date).day ?? 0
+    }
+
+    func isStale(reminderAgeDays: Int, on date: Date = Date()) -> Bool {
+        ageDays(on: date) >= reminderAgeDays
+    }
 }
 
 struct DiskSpaceSnapshot: Equatable {

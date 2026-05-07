@@ -84,7 +84,7 @@ struct ToolbarView: View {
             Button {
                 showingStage = true
             } label: {
-                Label("Stage", systemImage: "tray.full")
+                Label(stageButtonTitle, systemImage: manager.staleStageEntries.isEmpty ? "tray.full" : "exclamationmark.triangle")
             }
             .disabled(manager.stageEntries.isEmpty)
 
@@ -139,6 +139,10 @@ struct ToolbarView: View {
         case .failed(let message):
             return message
         }
+    }
+
+    private var stageButtonTitle: String {
+        manager.staleStageEntries.isEmpty ? "Stage" : "Stage (\(manager.staleStageEntries.count))"
     }
 }
 
@@ -338,6 +342,7 @@ struct StageView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var manager: CleanupManager
     @State private var pendingPermanentDelete: StageEntry?
+    @State private var confirmingMoveStaleToTrash = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -345,10 +350,17 @@ struct StageView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Stage")
                         .font(.title2.weight(.semibold))
-                    Text("Items moved out of their original locations for review")
+                    Text(stageSubtitle)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+                if !manager.staleStageEntries.isEmpty {
+                    Button {
+                        confirmingMoveStaleToTrash = true
+                    } label: {
+                        Label("Trash Stale", systemImage: "trash")
+                    }
+                }
                 Button {
                     manager.revealStageFolder()
                 } label: {
@@ -401,6 +413,21 @@ struct StageView: View {
         } message: {
             Text("This removes the staged item immediately instead of sending it to Trash.")
         }
+        .confirmationDialog("Move stale staged items to Trash?", isPresented: $confirmingMoveStaleToTrash) {
+            Button("Move \(manager.staleStageEntries.count) Item\(manager.staleStageEntries.count == 1 ? "" : "s") to Trash", role: .destructive) {
+                manager.moveStaleStageEntriesToTrash()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Only staged items at least \(manager.stageReminderAgeDays) days old are included.")
+        }
+    }
+
+    private var stageSubtitle: String {
+        if manager.staleStageEntries.isEmpty {
+            return "Items moved out of their original locations for review"
+        }
+        return "\(manager.staleStageEntries.count) item\(manager.staleStageEntries.count == 1 ? "" : "s") staged for \(manager.stageReminderAgeDays)+ days"
     }
 }
 
@@ -425,6 +452,11 @@ private struct StageRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if entry.isStale(reminderAgeDays: manager.stageReminderAgeDays) {
+                    Label("\(entry.ageDays()) days in Stage", systemImage: "clock.badge.exclamationmark")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Spacer()
@@ -457,6 +489,37 @@ private struct StageRow: View {
             }
         }
         .padding(.vertical, 4)
+        .contextMenu {
+            Button {
+                manager.revealStagedItem(entry)
+            } label: {
+                Label("Reveal Staged Item", systemImage: "tray.full")
+            }
+            .disabled(!entry.existsInStage)
+
+            Button {
+                manager.revealOriginalLocation(for: entry)
+            } label: {
+                Label("Reveal Original Location", systemImage: "folder")
+            }
+
+            Button {
+                copyPath(entry.originalURL.path)
+            } label: {
+                Label("Copy Original Path", systemImage: "doc.on.doc")
+            }
+
+            Button {
+                copyPath(entry.stagedURL.path)
+            } label: {
+                Label("Copy Staged Path", systemImage: "doc.on.doc.fill")
+            }
+        }
+    }
+
+    private func copyPath(_ path: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
     }
 }
 

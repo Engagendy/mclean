@@ -15,6 +15,12 @@ final class CleanupManager: ObservableObject {
             savePreferences()
         }
     }
+    @Published var stageReminderAgeDays = 7 {
+        didSet {
+            guard isReadyToPersistPreferences else { return }
+            savePreferences()
+        }
+    }
     @Published var items: [CleanupItem] = []
     @Published var selectedIDs = Set<CleanupItem.ID>()
     @Published var summary = ScanSummary()
@@ -78,10 +84,15 @@ final class CleanupManager: ObservableObject {
         return Self.scanDateFormatter.string(from: lastScannedAt)
     }
 
+    var staleStageEntries: [StageEntry] {
+        stageEntries.filter { $0.existsInStage && $0.isStale(reminderAgeDays: stageReminderAgeDays) }
+    }
+
     init() {
         let preferences = ScanResultsStore.loadPreferences()
         options = preferences.options
         scanMode = preferences.scanMode
+        stageReminderAgeDays = preferences.stageReminderAgeDays
         if let stored = ScanResultsStore.load() {
             items = stored.items
             summary = stored.summary
@@ -469,6 +480,47 @@ final class CleanupManager: ObservableObject {
         }
     }
 
+    func moveStaleStageEntriesToTrash() {
+        let targets = staleStageEntries
+        guard !targets.isEmpty else { return }
+
+        var moved = 0
+        var failed = 0
+        var newHistory: [TrashHistoryEntry] = []
+
+        for entry in targets {
+            do {
+                var resultingURL: NSURL?
+                try FileManager.default.trashItem(at: entry.stagedURL, resultingItemURL: &resultingURL)
+                if let resultingURL = resultingURL as URL? {
+                    newHistory.append(TrashHistoryEntry(
+                        itemName: entry.itemName,
+                        originalURL: entry.originalURL,
+                        trashedURL: resultingURL,
+                        size: entry.size,
+                        movedAt: Date()
+                    ))
+                }
+                removeStageContainerIfEmpty(for: entry)
+                stageEntries.removeAll { $0.id == entry.id }
+                moved += 1
+            } catch {
+                failed += 1
+            }
+        }
+
+        if !newHistory.isEmpty {
+            trashHistory.insert(contentsOf: newHistory, at: 0)
+            trashHistory = Array(trashHistory.prefix(100))
+            ScanResultsStore.saveTrashHistory(trashHistory)
+        }
+        ScanResultsStore.saveStageEntries(stageEntries)
+        lastDeletionMessage = failed == 0
+            ? "Moved \(moved) stale staged item\(moved == 1 ? "" : "s") to Trash."
+            : "Moved \(moved) stale staged item\(moved == 1 ? "" : "s") to Trash. \(failed) failed."
+        refreshDiskSpace()
+    }
+
     func deleteStagedPermanently(_ entry: StageEntry) {
         guard entry.existsInStage else { return }
         do {
@@ -495,6 +547,18 @@ final class CleanupManager: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
+    func revealStagedItem(_ entry: StageEntry) {
+        NSWorkspace.shared.activateFileViewerSelecting([entry.stagedURL])
+    }
+
+    func revealOriginalLocation(for entry: StageEntry) {
+        if FileManager.default.fileExists(atPath: entry.originalURL.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([entry.originalURL])
+        } else {
+            NSWorkspace.shared.activateFileViewerSelecting([entry.originalURL.deletingLastPathComponent()])
+        }
+    }
+
     private func removeStageContainerIfEmpty(for entry: StageEntry) {
         let container = entry.stagedURL.deletingLastPathComponent()
         guard let contents = try? FileManager.default.contentsOfDirectory(atPath: container.path),
@@ -505,7 +569,11 @@ final class CleanupManager: ObservableObject {
     }
 
     private func savePreferences() {
-        ScanResultsStore.savePreferences(CleanupPreferences(scanMode: scanMode, options: options))
+        ScanResultsStore.savePreferences(CleanupPreferences(
+            scanMode: scanMode,
+            options: options,
+            stageReminderAgeDays: stageReminderAgeDays
+        ))
     }
 
     private func normalizedPath(_ path: String) -> String {

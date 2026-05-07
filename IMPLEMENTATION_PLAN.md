@@ -114,7 +114,7 @@ Implementation tasks:
 - `[x]` Add a macOS Settings scene or in-app settings sheet.
 - `[x]` Move scan options into Settings where they persist between app launches.
 - `[x]` Add exclusions management.
-- `[ ]` Add Stage preferences such as reminder age and default action visibility.
+- `[~]` Add Stage preferences such as reminder age and default action visibility.
 - `[x]` Add browser and developer module toggles.
 
 Acceptance criteria:
@@ -216,7 +216,7 @@ Acceptance criteria:
 
 ### Stage Age Reminders
 
-Status: `[~]`
+Status: `[x]`
 
 Current foundation:
 
@@ -224,10 +224,10 @@ Current foundation:
 
 Implementation tasks:
 
-- `[ ]` Add configurable Stage reminder age.
-- `[ ]` Show staged item age in Stage view.
-- `[ ]` Notify or badge when staged items exceed the reminder age.
-- `[ ]` Add "Move old staged items to Trash" bulk action with confirmation.
+- `[x]` Add configurable Stage reminder age.
+- `[x]` Show staged item age in Stage view.
+- `[x]` Notify or badge when staged items exceed the reminder age.
+- `[x]` Add "Move old staged items to Trash" bulk action with confirmation.
 
 Acceptance criteria:
 
@@ -247,8 +247,8 @@ Implementation tasks:
 - `[x]` Add context menu actions to result rows.
 - `[x]` Add copy path action.
 - `[x]` Add exclude parent folder action.
-- `[ ]` Add reveal original path for staged entries.
-- `[ ]` Add reveal staged file action.
+- `[x]` Add reveal original path for staged entries.
+- `[x]` Add reveal staged file action.
 
 Acceptance criteria:
 

@@ -107,4 +107,26 @@ enum ScanResultsStore {
 struct CleanupPreferences: Codable, Equatable {
     var scanMode: ScanMode = .quick
     var options = ScanOptions()
+    var stageReminderAgeDays = 7
+
+    private enum CodingKeys: String, CodingKey {
+        case scanMode
+        case options
+        case stageReminderAgeDays
+    }
+
+    init() {}
+
+    init(scanMode: ScanMode = .quick, options: ScanOptions = ScanOptions(), stageReminderAgeDays: Int = 7) {
+        self.scanMode = scanMode
+        self.options = options
+        self.stageReminderAgeDays = stageReminderAgeDays
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        scanMode = try container.decodeIfPresent(ScanMode.self, forKey: .scanMode) ?? .quick
+        options = try container.decodeIfPresent(ScanOptions.self, forKey: .options) ?? ScanOptions()
+        stageReminderAgeDays = try container.decodeIfPresent(Int.self, forKey: .stageReminderAgeDays) ?? 7
+    }
 }

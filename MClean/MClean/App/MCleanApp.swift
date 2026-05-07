@@ -48,6 +48,11 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Exclusions", systemImage: "folder.badge.minus")
                 }
+
+            stageSettings
+                .tabItem {
+                    Label("Stage", systemImage: "tray.full")
+                }
         }
         .padding(20)
     }
@@ -147,6 +152,23 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    private var stageSettings: some View {
+        Form {
+            Section("Review Reminder") {
+                Stepper(
+                    "\(manager.stageReminderAgeDays) days before staged items are marked stale",
+                    value: $manager.stageReminderAgeDays,
+                    in: 1...90,
+                    step: 1
+                )
+                Text("\(manager.staleStageEntries.count) staged item\(manager.staleStageEntries.count == 1 ? "" : "s") currently meet this reminder age.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 
     private func chooseExclusionFolder() {
