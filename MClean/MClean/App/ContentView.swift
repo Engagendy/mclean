@@ -348,8 +348,8 @@ struct DashboardDetailView: View {
     }
 
     private var subtitle: String {
-        if case .scanning(let message) = manager.state {
-            return "\(message) - \(manager.items.count) findings streamed"
+        if case .scanning = manager.state {
+            return "\(manager.scanProgress.phaseText) - \(manager.items.count) findings streamed"
         }
         if let lastScan = manager.lastScanDescription {
             return "Last scan \(lastScan)"

@@ -5,10 +5,21 @@ struct StatusBar: View {
 
     var body: some View {
         HStack {
-            if case .scanning(let message) = manager.state {
+            if case .scanning = manager.state {
                 ProgressView()
                     .controlSize(.small)
-                Text("\(message) - \(manager.summary.scannedFiles) files scanned")
+                Text("\(manager.scanProgress.phaseText) - \(manager.summary.scannedFiles) files scanned")
+                Text(manager.scanProgress.estimateText)
+                if !manager.scanProgress.skippedPhases.isEmpty {
+                    Text("\(manager.scanProgress.skippedPhases.count) phase\(manager.scanProgress.skippedPhases.count == 1 ? "" : "s") skipped")
+                }
+                Button {
+                    manager.skipCurrentScanPhase()
+                } label: {
+                    Label("Skip Category", systemImage: "forward.end")
+                }
+                .disabled(manager.scanProgress.phase == nil)
+                .help("Skip the current scan category and continue with the next one")
             } else if let message = manager.lastDeletionMessage {
                 Text(message)
             } else if case .cancelled = manager.state {

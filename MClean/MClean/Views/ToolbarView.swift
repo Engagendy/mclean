@@ -128,8 +128,8 @@ struct ToolbarView: View {
         switch manager.state {
         case .idle:
             return "Choose scan options, then click Scan"
-        case .scanning(let message):
-            return "\(message) - \(manager.items.count) findings, \(manager.summary.scannedFiles) files scanned"
+        case .scanning:
+            return "\(manager.scanProgress.phaseText) - \(manager.items.count) findings, \(manager.summary.scannedFiles) files scanned"
         case .finished:
             let scanText = manager.lastScanDescription.map { "Last scan \($0)" } ?? "Scan complete"
             let missing = manager.missingItemCount > 0 ? ", \(manager.missingItemCount) missing" : ""

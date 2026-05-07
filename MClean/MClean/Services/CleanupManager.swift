@@ -25,6 +25,7 @@ final class CleanupManager: ObservableObject {
     @Published var selectedIDs = Set<CleanupItem.ID>()
     @Published var summary = ScanSummary()
     @Published var state: ScanState = .idle
+    @Published var scanProgress = ScanProgress()
     @Published var lastDeletionMessage: String?
     @Published var fullDiskAccessStatus = FullDiskAccessService.currentStatus()
     @Published var detailItem: CleanupItem?
@@ -35,6 +36,7 @@ final class CleanupManager: ObservableObject {
     private let scanner = FileScanner()
     private var lastScannedAt: Date?
     private var scanTask: Task<Void, Never>?
+    private var skippedScanPhases = Set<ScanPhase>()
     private var isReadyToPersistPreferences = false
 
     var selectedItems: [CleanupItem] {
@@ -112,6 +114,8 @@ final class CleanupManager: ObservableObject {
         lastDeletionMessage = nil
         items.removeAll()
         summary = ScanSummary()
+        scanProgress = ScanProgress()
+        skippedScanPhases.removeAll()
         refreshFullDiskAccessStatus()
         refreshDiskSpace()
         state = .scanning("Preparing scan")
@@ -120,9 +124,14 @@ final class CleanupManager: ObservableObject {
             guard let self else { return }
             let result = await scanner.scan(
                 options: options,
-                progress: { [weak self] message in
+                progress: { [weak self] progress in
                     guard let self, self.scanTask != nil else { return }
-                    self.state = .scanning(message)
+                    self.scanProgress = progress
+                    self.state = .scanning(progress.message)
+                },
+                shouldSkipPhase: { [weak self] phase in
+                    guard let self else { return false }
+                    return self.skippedScanPhases.contains(phase)
                 },
                 onItem: { [weak self] item in
                     guard let self, self.scanTask != nil else { return }
@@ -142,6 +151,7 @@ final class CleanupManager: ObservableObject {
                 ScanResultsStore.save(items: self.items, summary: self.summary)
                 self.scanTask = nil
                 self.state = .cancelled
+                self.scanProgress = ScanProgress()
                 return
             }
 
@@ -152,12 +162,19 @@ final class CleanupManager: ObservableObject {
             refreshFullDiskAccessStatus()
             refreshDiskSpace()
             scanTask = nil
+            scanProgress = ScanProgress()
             state = .finished
         }
     }
 
     func cancelScan() {
         scanTask?.cancel()
+    }
+
+    func skipCurrentScanPhase() {
+        guard let phase = scanProgress.phase, isScanning else { return }
+        skippedScanPhases.insert(phase)
+        state = .scanning("Skipping \(phase.rawValue)")
     }
 
     var isScanning: Bool {

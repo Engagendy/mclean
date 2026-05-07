@@ -69,7 +69,7 @@ MClean can scan normal user folders without Full Disk Access. macOS blocks some 
 
 - Native macOS sidebar, toolbar, sortable table, and multi-selection.
 - Quick, Deep, and Custom scan modes.
-- Live streaming scan results so files appear while scanning continues.
+- Live streaming scan results with phase progress, remaining-phase estimates, and category skipping.
 - Previous scan results are restored on launch and refreshed on the next scan.
 - Full Disk Access guidance for protected macOS locations.
 - Review-before-delete sheet with high-risk and missing-file warnings.

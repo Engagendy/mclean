@@ -178,7 +178,7 @@ Acceptance criteria:
 
 ### Progress Estimates And Per-Category Cancellation
 
-Status: `[~]`
+Status: `[x]`
 
 Current foundation:
 
@@ -186,10 +186,10 @@ Current foundation:
 
 Implementation tasks:
 
-- `[ ]` Track current scan phase and category.
-- `[ ]` Add per-category progress counts where enumerable.
-- `[ ]` Allow skipping the current category while continuing the scan.
-- `[ ]` Estimate remaining phases without claiming exact time.
+- `[x]` Track current scan phase and category.
+- `[x]` Add per-category progress counts where enumerable.
+- `[x]` Allow skipping the current category while continuing the scan.
+- `[x]` Estimate remaining phases without claiming exact time.
 
 Acceptance criteria:
 

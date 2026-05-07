@@ -329,6 +329,50 @@ enum ScanState: Equatable {
     case failed(String)
 }
 
+enum ScanPhase: String, CaseIterable, Identifiable, Codable {
+    case userCaches = "User Caches"
+    case temporary = "Temporary Folders"
+    case downloads = "Downloads"
+    case largeFiles = "Large Files"
+    case developerData = "Developer Data"
+    case browserCaches = "Browser Caches"
+    case duplicates = "Duplicates"
+    case appLeftovers = "App Leftovers"
+    case appSupport = "App Support"
+    case systemStorage = "System Storage"
+    case oldFiles = "Old Files"
+
+    var id: String { rawValue }
+}
+
+struct ScanProgress: Equatable {
+    var phase: ScanPhase?
+    var phaseIndex: Int = 0
+    var totalPhases: Int = 0
+    var phaseScannedFiles: Int = 0
+    var totalScannedFiles: Int = 0
+    var skippedPhases: [ScanPhase] = []
+
+    var message: String {
+        guard let phase else { return "Preparing scan" }
+        return "Scanning \(phase.rawValue)"
+    }
+
+    var phaseText: String {
+        guard let phase else { return "Preparing scan" }
+        return "Phase \(phaseIndex) of \(totalPhases): \(phase.rawValue)"
+    }
+
+    var estimateText: String {
+        guard totalPhases > 0 else { return "Preparing phases" }
+        let remaining = max(totalPhases - phaseIndex, 0)
+        if remaining == 0 {
+            return "Final phase"
+        }
+        return "\(remaining) phase\(remaining == 1 ? "" : "s") after this"
+    }
+}
+
 enum ScanMode: String, CaseIterable, Identifiable, Codable {
     case quick = "Quick"
     case deep = "Deep"

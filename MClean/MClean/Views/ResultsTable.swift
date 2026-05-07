@@ -163,8 +163,8 @@ struct ResultsTable: View {
     }
 
     private var scanMessage: String {
-        if case .scanning(let message) = manager.state {
-            return message
+        if case .scanning = manager.state {
+            return "\(manager.scanProgress.phaseText) - \(manager.scanProgress.estimateText)"
         }
         return "Preparing scan"
     }

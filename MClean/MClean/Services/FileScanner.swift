@@ -80,7 +80,8 @@ actor FileScanner {
 
     func scan(
         options: ScanOptions,
-        progress: @escaping @MainActor @Sendable (String) -> Void,
+        progress: @escaping @MainActor @Sendable (ScanProgress) -> Void,
+        shouldSkipPhase: @escaping @MainActor @Sendable (ScanPhase) -> Bool,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async -> ScanResult {
@@ -89,10 +90,64 @@ actor FileScanner {
         var seenPaths = Set<String>()
         var summary = ScanSummary()
         let excludedPaths = normalizedExcludedPaths(options.excludedPaths)
+        let phases = enabledScanPhases(for: options)
+        var skippedPhases: [ScanPhase] = []
+
+        func progressSnapshot(for phase: ScanPhase, phaseStartCount: Int) -> ScanProgress {
+            ScanProgress(
+                phase: phase,
+                phaseIndex: (phases.firstIndex(of: phase) ?? 0) + 1,
+                totalPhases: phases.count,
+                phaseScannedFiles: max(summary.scannedFiles - phaseStartCount, 0),
+                totalScannedFiles: summary.scannedFiles,
+                skippedPhases: skippedPhases
+            )
+        }
+
+        func summaryHandler(for phase: ScanPhase, phaseStartCount: Int) -> @MainActor @Sendable (ScanSummary) -> Void {
+            let skippedSnapshot = skippedPhases
+            return { currentSummary in
+                onSummary(currentSummary)
+                progress(ScanProgress(
+                    phase: phase,
+                    phaseIndex: (phases.firstIndex(of: phase) ?? 0) + 1,
+                    totalPhases: phases.count,
+                    phaseScannedFiles: max(currentSummary.scannedFiles - phaseStartCount, 0),
+                    totalScannedFiles: currentSummary.scannedFiles,
+                    skippedPhases: skippedSnapshot
+                ))
+            }
+        }
+
+        func startPhase(_ phase: ScanPhase) async -> Int {
+            let phaseStartCount = summary.scannedFiles
+            await progress(progressSnapshot(for: phase, phaseStartCount: phaseStartCount))
+            return phaseStartCount
+        }
+
+        func finishPhaseIfSkipped(_ phase: ScanPhase) async {
+            if await shouldSkipPhase(phase), !skippedPhases.contains(phase) {
+                skippedPhases.append(phase)
+                await progress(ScanProgress(
+                    phase: phase,
+                    phaseIndex: (phases.firstIndex(of: phase) ?? 0) + 1,
+                    totalPhases: phases.count,
+                    phaseScannedFiles: 0,
+                    totalScannedFiles: summary.scannedFiles,
+                    skippedPhases: skippedPhases
+                ))
+            }
+        }
+
+        func shouldStopPhase(_ phase: ScanPhase) async -> Bool {
+            if Task.isCancelled { return true }
+            return await shouldSkipPhase(phase)
+        }
 
         if options.includeCaches {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Scanning user caches")
+            let phase = ScanPhase.userCaches
+            let phaseStartCount = await startPhase(phase)
             await collectDirectoryCandidates(
                 roots: [home.appendingPathComponent("Library/Caches")],
                 category: .caches,
@@ -104,14 +159,18 @@ actor FileScanner {
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeTemporary {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Scanning temporary folders")
+            let phase = ScanPhase.temporary
+            let phaseStartCount = await startPhase(phase)
             await collectDirectoryCandidates(
                 roots: [
                     URL(fileURLWithPath: NSTemporaryDirectory()),
@@ -127,14 +186,18 @@ actor FileScanner {
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeDownloads {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Scanning Downloads")
+            let phase = ScanPhase.downloads
+            let phaseStartCount = await startPhase(phase)
             await collectFileCandidates(
                 roots: [home.appendingPathComponent("Downloads")],
                 category: .downloads,
@@ -146,14 +209,18 @@ actor FileScanner {
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeLargeFiles {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Finding large files")
+            let phase = ScanPhase.largeFiles
+            let phaseStartCount = await startPhase(phase)
             await collectFileCandidates(
                 roots: [home],
                 category: .largeFiles,
@@ -165,14 +232,18 @@ actor FileScanner {
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeDeveloperData {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Scanning developer data")
+            let phase = ScanPhase.developerData
+            let phaseStartCount = await startPhase(phase)
             await collectExactDirectoryCandidates(
                 roots: developerDataRoots(home: home).map(\.url),
                 category: .developerData,
@@ -191,28 +262,36 @@ actor FileScanner {
                 sourceWarningProvider: { url in
                     self.developerSource(for: url, home: home)?.warning
                 },
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeBrowserCaches {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Scanning browser caches")
+            let phase = ScanPhase.browserCaches
+            let phaseStartCount = await startPhase(phase)
             await collectBrowserCacheCandidates(
                 roots: browserCacheRoots(home: home),
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeDuplicates {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Grouping duplicate files")
+            let phase = ScanPhase.duplicates
+            let phaseStartCount = await startPhase(phase)
             await collectDuplicateFileCandidates(
                 roots: [
                     home.appendingPathComponent("Downloads"),
@@ -224,28 +303,36 @@ actor FileScanner {
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeAppLeftovers {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Detecting app leftovers")
+            let phase = ScanPhase.appLeftovers
+            let phaseStartCount = await startPhase(phase)
             await collectAppLeftoverCandidates(
                 home: home,
                 items: &items,
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeAppSupport {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Scanning app support data")
+            let phase = ScanPhase.appSupport
+            let phaseStartCount = await startPhase(phase)
             await collectDirectoryCandidates(
                 roots: appSupportRoots(home: home),
                 category: .appSupport,
@@ -257,14 +344,18 @@ actor FileScanner {
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeSystemStorage {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Scanning system storage")
+            let phase = ScanPhase.systemStorage
+            let phaseStartCount = await startPhase(phase)
             await collectExactDirectoryCandidates(
                 roots: systemStorageRoots(home: home),
                 category: .systemStorage,
@@ -276,14 +367,18 @@ actor FileScanner {
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         if options.includeOldFiles {
             if Task.isCancelled { return ScanResult(items: items, summary: summary) }
-            await progress("Finding old files")
+            let phase = ScanPhase.oldFiles
+            let phaseStartCount = await startPhase(phase)
             await collectFileCandidates(
                 roots: [home.appendingPathComponent("Documents"), home.appendingPathComponent("Desktop")],
                 category: .oldFiles,
@@ -295,9 +390,12 @@ actor FileScanner {
                 seenPaths: &seenPaths,
                 summary: &summary,
                 excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
                 onItem: onItem,
-                onSummary: onSummary
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await finishPhaseIfSkipped(phase)
         }
 
         let sorted = items
@@ -314,6 +412,22 @@ actor FileScanner {
         return ScanResult(items: finalItems, summary: summary)
     }
 
+    private func enabledScanPhases(for options: ScanOptions) -> [ScanPhase] {
+        var phases: [ScanPhase] = []
+        if options.includeCaches { phases.append(.userCaches) }
+        if options.includeTemporary { phases.append(.temporary) }
+        if options.includeDownloads { phases.append(.downloads) }
+        if options.includeLargeFiles { phases.append(.largeFiles) }
+        if options.includeDeveloperData { phases.append(.developerData) }
+        if options.includeBrowserCaches { phases.append(.browserCaches) }
+        if options.includeDuplicates { phases.append(.duplicates) }
+        if options.includeAppLeftovers { phases.append(.appLeftovers) }
+        if options.includeAppSupport { phases.append(.appSupport) }
+        if options.includeSystemStorage { phases.append(.systemStorage) }
+        if options.includeOldFiles { phases.append(.oldFiles) }
+        return phases
+    }
+
     private func collectDirectoryCandidates(
         roots: [URL],
         category: CleanupCategory,
@@ -328,11 +442,13 @@ actor FileScanner {
         sourceKind: CleanupSourceKind? = nil,
         sourceName: String? = nil,
         sourceWarning: String? = nil,
+        phase: ScanPhase,
+        shouldStopPhase: @escaping (ScanPhase) async -> Bool,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
         for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
-            if Task.isCancelled { return }
+            if await shouldStopPhase(phase) { return }
             guard let children = try? fileManager.contentsOfDirectory(
                 at: root,
                 includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey, .totalFileAllocatedSizeKey],
@@ -343,7 +459,7 @@ actor FileScanner {
             }
 
             for child in children {
-                if Task.isCancelled { return }
+                if await shouldStopPhase(phase) { return }
                 guard !isExcluded(child, excludedPaths: excludedPaths) else { continue }
                 guard !isSystemCritical(child), seenPaths.insert(child.path).inserted else { continue }
                 let size = directorySize(child, maxDepth: maxDepth, summary: &summary)
@@ -384,11 +500,13 @@ actor FileScanner {
         sourceKind: CleanupSourceKind? = nil,
         sourceNameProvider: ((URL) -> String?)? = nil,
         sourceWarningProvider: ((URL) -> String?)? = nil,
+        phase: ScanPhase,
+        shouldStopPhase: @escaping (ScanPhase) async -> Bool,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
         for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
-            if Task.isCancelled { return }
+            if await shouldStopPhase(phase) { return }
             guard !isSystemCritical(root), seenPaths.insert(root.path).inserted else { continue }
             let values = try? root.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
             guard values?.isDirectory == true else { continue }
@@ -434,6 +552,8 @@ actor FileScanner {
         sourceKind: CleanupSourceKind? = nil,
         sourceName: String? = nil,
         sourceWarning: String? = nil,
+        phase: ScanPhase,
+        shouldStopPhase: @escaping (ScanPhase) async -> Bool,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
@@ -452,7 +572,7 @@ actor FileScanner {
             }
 
             while let nextURL = enumerator.nextObject() as? URL {
-                if Task.isCancelled { return }
+                if await shouldStopPhase(phase) { return }
                 let url = nextURL
                 if isExcluded(url, excludedPaths: excludedPaths) {
                     if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
@@ -514,6 +634,8 @@ actor FileScanner {
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
         excludedPaths: [String],
+        phase: ScanPhase,
+        shouldStopPhase: @escaping (ScanPhase) async -> Bool,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
@@ -532,7 +654,7 @@ actor FileScanner {
             }
 
             while let url = enumerator.nextObject() as? URL {
-                if Task.isCancelled { return }
+                if await shouldStopPhase(phase) { return }
                 if isExcluded(url, excludedPaths: excludedPaths) {
                     if (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
                         enumerator.skipDescendants()
@@ -552,10 +674,10 @@ actor FileScanner {
         }
 
         for (size, urls) in filesBySize where urls.count > 1 {
-            if Task.isCancelled { return }
+            if await shouldStopPhase(phase) { return }
             var filesByHash: [String: [URL]] = [:]
             for url in urls {
-                if Task.isCancelled { return }
+                if await shouldStopPhase(phase) { return }
                 guard let hash = sha256(for: url) else {
                     summary.skippedItems += 1
                     continue
@@ -597,11 +719,13 @@ actor FileScanner {
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
         excludedPaths: [String],
+        phase: ScanPhase,
+        shouldStopPhase: @escaping (ScanPhase) async -> Bool,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
         for root in roots where fileManager.fileExists(atPath: root.url.path) && !isExcluded(root.url, excludedPaths: excludedPaths) {
-            if Task.isCancelled { return }
+            if await shouldStopPhase(phase) { return }
             guard !isSystemCritical(root.url), seenPaths.insert(root.url.path).inserted else { continue }
             let values = try? root.url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
             guard values?.isDirectory == true else { continue }
@@ -635,6 +759,8 @@ actor FileScanner {
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
         excludedPaths: [String],
+        phase: ScanPhase,
+        shouldStopPhase: @escaping (ScanPhase) async -> Bool,
         onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
         onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
     ) async {
@@ -651,7 +777,7 @@ actor FileScanner {
         ]
 
         for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
-            if Task.isCancelled { return }
+            if await shouldStopPhase(phase) { return }
             guard let children = try? fileManager.contentsOfDirectory(
                 at: root,
                 includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey],
@@ -662,7 +788,7 @@ actor FileScanner {
             }
 
             for child in children {
-                if Task.isCancelled { return }
+                if await shouldStopPhase(phase) { return }
                 guard !isExcluded(child, excludedPaths: excludedPaths) else { continue }
                 guard let bundleID = probableBundleID(from: child), !installedBundleIDs.contains(bundleID) else { continue }
                 guard !isProtectedPath(child), seenPaths.insert(child.path).inserted else { continue }
