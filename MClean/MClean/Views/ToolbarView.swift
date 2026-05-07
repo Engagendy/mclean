@@ -183,7 +183,7 @@ struct AppLeftoverReviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            WrappingHStack(spacing: 10, lineSpacing: 8) {
+            HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("App Leftovers")
                         .font(.title2.weight(.semibold))
@@ -191,13 +191,15 @@ struct AppLeftoverReviewView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Spacer(minLength: 16)
+
                 Button("Close") {
                     isPresented = false
                 }
                 .keyboardShortcut(.cancelAction)
                 .buttonStyle(.mcleanAction)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18)
 
             Divider()
