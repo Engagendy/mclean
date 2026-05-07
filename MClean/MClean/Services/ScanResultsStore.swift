@@ -107,6 +107,7 @@ enum ScanResultsStore {
 struct CleanupPreferences: Codable, Equatable {
     var scanMode: ScanMode = .quick
     var options = ScanOptions()
+    var savedProfiles: [SavedScanProfile] = []
     var stageReminderAgeDays = 7
     var scheduledScansEnabled = false
     var scheduledScanIntervalDays = 7
@@ -115,6 +116,7 @@ struct CleanupPreferences: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case scanMode
         case options
+        case savedProfiles
         case stageReminderAgeDays
         case scheduledScansEnabled
         case scheduledScanIntervalDays
@@ -126,6 +128,7 @@ struct CleanupPreferences: Codable, Equatable {
     init(
         scanMode: ScanMode = .quick,
         options: ScanOptions = ScanOptions(),
+        savedProfiles: [SavedScanProfile] = [],
         stageReminderAgeDays: Int = 7,
         scheduledScansEnabled: Bool = false,
         scheduledScanIntervalDays: Int = 7,
@@ -133,6 +136,7 @@ struct CleanupPreferences: Codable, Equatable {
     ) {
         self.scanMode = scanMode
         self.options = options
+        self.savedProfiles = savedProfiles
         self.stageReminderAgeDays = stageReminderAgeDays
         self.scheduledScansEnabled = scheduledScansEnabled
         self.scheduledScanIntervalDays = scheduledScanIntervalDays
@@ -143,9 +147,17 @@ struct CleanupPreferences: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         scanMode = try container.decodeIfPresent(ScanMode.self, forKey: .scanMode) ?? .quick
         options = try container.decodeIfPresent(ScanOptions.self, forKey: .options) ?? ScanOptions()
+        savedProfiles = try container.decodeIfPresent([SavedScanProfile].self, forKey: .savedProfiles) ?? []
         stageReminderAgeDays = try container.decodeIfPresent(Int.self, forKey: .stageReminderAgeDays) ?? 7
         scheduledScansEnabled = try container.decodeIfPresent(Bool.self, forKey: .scheduledScansEnabled) ?? false
         scheduledScanIntervalDays = try container.decodeIfPresent(Int.self, forKey: .scheduledScanIntervalDays) ?? 7
         lastScheduledScanAt = try container.decodeIfPresent(Date.self, forKey: .lastScheduledScanAt)
     }
+}
+
+struct SavedScanProfile: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var name: String
+    var options: ScanOptions
+    var createdAt = Date()
 }

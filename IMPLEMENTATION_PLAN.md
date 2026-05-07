@@ -124,7 +124,7 @@ Acceptance criteria:
 
 ### Saved Scan Profiles
 
-Status: `[~]`
+Status: `[x]`
 
 Current foundation:
 
@@ -135,7 +135,7 @@ Implementation tasks:
 - `[x]` Add Developer profile.
 - `[x]` Add Downloads Review profile.
 - `[x]` Persist last selected profile.
-- `[ ]` Support user-created custom profiles.
+- `[x]` Support user-created custom profiles.
 - `[x]` Show which categories each profile includes.
 
 Acceptance criteria:

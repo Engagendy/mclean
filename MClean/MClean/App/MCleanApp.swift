@@ -40,6 +40,7 @@ struct MCleanApp: App {
 struct SettingsView: View {
     @EnvironmentObject private var manager: CleanupManager
     @State private var manualExclusionPath = ""
+    @State private var profileName = ""
 
     var body: some View {
         TabView {
@@ -83,6 +84,42 @@ struct SettingsView: View {
                 Text(manager.scanMode.includedSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("Saved Profiles") {
+                HStack(spacing: 8) {
+                    TextField("Profile name", text: $profileName)
+                        .textFieldStyle(.roundedBorder)
+                    Button {
+                        manager.saveCurrentScanProfile(named: profileName)
+                        profileName = ""
+                    } label: {
+                        Label("Save Current", systemImage: "plus")
+                    }
+                    .disabled(profileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
+                if manager.savedScanProfiles.isEmpty {
+                    Text("No custom profiles saved.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(manager.savedScanProfiles) { profile in
+                        HStack(spacing: 10) {
+                            Label(profile.name, systemImage: "slider.horizontal.3")
+                            Spacer()
+                            Button {
+                                manager.applySavedScanProfile(profile)
+                            } label: {
+                                Label("Apply", systemImage: "checkmark.circle")
+                            }
+                            Button(role: .destructive) {
+                                manager.deleteSavedScanProfile(profile)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
             }
 
             Section("Categories") {

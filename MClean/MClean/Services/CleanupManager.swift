@@ -22,6 +22,12 @@ final class CleanupManager: ObservableObject {
             savePreferences()
         }
     }
+    @Published var savedScanProfiles: [SavedScanProfile] = [] {
+        didSet {
+            guard isReadyToPersistPreferences else { return }
+            savePreferences()
+        }
+    }
     @Published var scheduledScansEnabled = false {
         didSet {
             guard isReadyToPersistPreferences else { return }
@@ -139,6 +145,7 @@ final class CleanupManager: ObservableObject {
         let preferences = ScanResultsStore.loadPreferences()
         options = preferences.options
         scanMode = preferences.scanMode
+        savedScanProfiles = preferences.savedProfiles
         stageReminderAgeDays = preferences.stageReminderAgeDays
         scheduledScansEnabled = preferences.scheduledScansEnabled
         scheduledScanIntervalDays = preferences.scheduledScanIntervalDays
@@ -301,6 +308,26 @@ final class CleanupManager: ObservableObject {
 
     func markCustomScanMode() {
         scanMode = .custom
+    }
+
+    func saveCurrentScanProfile(named rawName: String) {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        savedScanProfiles.removeAll { $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }
+        savedScanProfiles.append(SavedScanProfile(name: name, options: options))
+        savedScanProfiles.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        lastDeletionMessage = "Saved scan profile \(name)."
+    }
+
+    func applySavedScanProfile(_ profile: SavedScanProfile) {
+        options = profile.options
+        scanMode = .custom
+        lastDeletionMessage = "Applied scan profile \(profile.name)."
+    }
+
+    func deleteSavedScanProfile(_ profile: SavedScanProfile) {
+        savedScanProfiles.removeAll { $0.id == profile.id }
+        lastDeletionMessage = "Deleted scan profile \(profile.name)."
     }
 
     func updateOptions(_ update: (inout ScanOptions) -> Void) {
@@ -657,6 +684,7 @@ final class CleanupManager: ObservableObject {
         ScanResultsStore.savePreferences(CleanupPreferences(
             scanMode: scanMode,
             options: options,
+            savedProfiles: savedScanProfiles,
             stageReminderAgeDays: stageReminderAgeDays,
             scheduledScansEnabled: scheduledScansEnabled,
             scheduledScanIntervalDays: scheduledScanIntervalDays,
