@@ -236,7 +236,7 @@ Acceptance criteria:
 
 ### Finder Context Actions
 
-Status: `[~]`
+Status: `[x]`
 
 Current foundation:
 
