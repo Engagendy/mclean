@@ -19,11 +19,11 @@ Current foundation:
 
 Implementation tasks:
 
-- `[~]` Expand installed-app inventory to include `/System/Applications`, Setapp-style app locations, and nested app bundles.
+- `[x]` Expand installed-app inventory to include `/System/Applications`, Setapp-style app locations, and nested app bundles.
 - `[x]` Detect package receipts from `/Library/Receipts`, `/private/var/db/receipts`, and user-visible install metadata where readable.
 - `[x]` Detect launch agents and launch daemons related to removed apps.
 - `[x]` Detect preferences in `~/Library/Preferences`.
-- `[~]` Detect logs in `~/Library/Logs` and related diagnostic locations.
+- `[x]` Detect logs in `~/Library/Logs` with bundle-ID child matching and cautious weak-name fallback grouping.
 - `[x]` Group leftovers by bundle ID in the UI.
 - `[x]` Add confidence labels for leftovers: exact bundle ID, probable bundle ID, weak name match.
 - `[ ]` Add tests for bundle-ID parsing and installed-app exclusion behavior.
@@ -67,9 +67,9 @@ Implementation tasks:
 - `[x]` Split developer data into named source types: Xcode, Docker, JavaScript, Python, Rust, Go, Gradle, Maven, Homebrew.
 - `[x]` Add a Developer scan profile that enables developer cleanup without unrelated categories.
 - `[x]` Add Xcode-specific coverage for DerivedData, Archives, DeviceSupport, Products, Previews, XCTestDevices, and simulator caches.
-- `[~]` Add Docker preview for caches, images, volumes, and VM storage without deleting Docker resources blindly.
+- `[x]` Add Docker preview for caches, images, volumes, and VM storage without deleting Docker resources blindly.
 - `[x]` Add npm, pnpm, and yarn cache modules.
-- `[~]` Add Python cache modules for pip, virtualenv, Poetry, Pipenv, pyenv build caches, and common `__pycache__` handling.
+- `[x]` Add Python cache modules for pip, virtualenv, Poetry, Pipenv, pyenv build caches, and common `__pycache__` handling.
 - `[x]` Add Rust, Go, and Gradle cache modules with source-specific explanations.
 - `[ ]` Add source-specific tests for developer roots.
 

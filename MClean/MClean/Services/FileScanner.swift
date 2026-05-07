@@ -267,6 +267,17 @@ actor FileScanner {
                 onItem: onItem,
                 onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await collectPythonBytecodeCandidates(
+                roots: pythonProjectRoots(home: home),
+                items: &items,
+                seenPaths: &seenPaths,
+                summary: &summary,
+                excludedPaths: excludedPaths,
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
+                onItem: onItem,
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
+            )
             await finishPhaseIfSkipped(phase)
         }
 
@@ -518,6 +529,12 @@ actor FileScanner {
             }
             guard size >= minSize else { continue }
 
+            let sourceName = sourceNameProvider?(root)
+            let sourceWarning = sourceWarningProvider?(root)
+            let itemProtection: CleanupProtection = sourceName?.localizedCaseInsensitiveContains("Docker") == true
+                ? .reviewOnly
+                : protection(for: root, category: category, risk: risk)
+
             let item = CleanupItem(
                 url: root,
                 name: root.lastPathComponent,
@@ -527,14 +544,77 @@ actor FileScanner {
                 risk: risk,
                 reason: reason,
                 isDirectory: true,
-                protection: protection(for: root, category: category, risk: risk),
+                protection: itemProtection,
                 sourceKind: sourceKind ?? CleanupItem.defaultSourceKind(for: category),
-                sourceName: sourceNameProvider?(root),
-                sourceWarning: sourceWarningProvider?(root)
+                sourceName: sourceName,
+                sourceWarning: sourceWarning
             )
             items.append(item)
             await onItem(item)
             await onSummary(summary)
+        }
+    }
+
+    private func collectPythonBytecodeCandidates(
+        roots: [URL],
+        items: inout [CleanupItem],
+        seenPaths: inout Set<String>,
+        summary: inout ScanSummary,
+        excludedPaths: [String],
+        phase: ScanPhase,
+        shouldStopPhase: @escaping (ScanPhase) async -> Bool,
+        onItem: @escaping @MainActor @Sendable (CleanupItem) -> Void,
+        onSummary: @escaping @MainActor @Sendable (ScanSummary) -> Void
+    ) async {
+        let keys: [URLResourceKey] = [.isDirectoryKey, .contentModificationDateKey, .fileAllocatedSizeKey, .totalFileAllocatedSizeKey]
+
+        for root in roots where fileManager.fileExists(atPath: root.path) && !isExcluded(root, excludedPaths: excludedPaths) {
+            if await shouldStopPhase(phase) { return }
+            guard let enumerator = fileManager.enumerator(
+                at: root,
+                includingPropertiesForKeys: keys,
+                options: [.skipsHiddenFiles, .skipsPackageDescendants],
+                errorHandler: { _, _ in true }
+            ) else {
+                summary.skippedItems += 1
+                continue
+            }
+
+            while let url = enumerator.nextObject() as? URL {
+                if await shouldStopPhase(phase) { return }
+                if isExcluded(url, excludedPaths: excludedPaths) || isSystemCritical(url) {
+                    enumerator.skipDescendants()
+                    continue
+                }
+                guard url.lastPathComponent == "__pycache__", seenPaths.insert(url.path).inserted else { continue }
+
+                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
+                guard values?.isDirectory == true else { continue }
+                let size = directorySize(url, maxDepth: 2, summary: &summary)
+                guard size >= 256 * 1_024 else {
+                    enumerator.skipDescendants()
+                    continue
+                }
+
+                let item = CleanupItem(
+                    url: url,
+                    name: url.lastPathComponent,
+                    size: size,
+                    modifiedAt: values?.contentModificationDate,
+                    category: .developerData,
+                    risk: .low,
+                    reason: "Python bytecode cache",
+                    isDirectory: true,
+                    protection: .normal,
+                    sourceKind: .developer,
+                    sourceName: "Python __pycache__",
+                    sourceWarning: "Python bytecode caches are regenerated automatically. Review project paths before removing."
+                )
+                items.append(item)
+                await onItem(item)
+                await onSummary(summary)
+                enumerator.skipDescendants()
+            }
         }
     }
 
@@ -794,7 +874,9 @@ actor FileScanner {
             for child in children {
                 if await shouldStopPhase(phase) { return }
                 guard !isExcluded(child, excludedPaths: excludedPaths) else { continue }
-                guard let match = appLeftoverMatch(from: child), !installedBundleIDs.contains(match.bundleID) else { continue }
+                guard let match = appLeftoverMatch(from: child),
+                      !installedBundleIDs.contains(match.bundleID),
+                      !isAppleOwnedBundleID(match.bundleID) else { continue }
                 guard !isProtectedPath(child), seenPaths.insert(child.path).inserted else { continue }
                 let values = try? child.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
                 let isDirectory = values?.isDirectory ?? true
@@ -989,16 +1071,21 @@ actor FileScanner {
     private func installedApplicationBundleIDs(home: URL) -> Set<String> {
         let appRoots = [
             URL(fileURLWithPath: "/System/Applications"),
+            URL(fileURLWithPath: "/System/Applications/Utilities"),
             URL(fileURLWithPath: "/Applications"),
-            home.appendingPathComponent("Applications")
+            URL(fileURLWithPath: "/Applications/Utilities"),
+            URL(fileURLWithPath: "/Applications/Setapp"),
+            URL(fileURLWithPath: "/Users/Shared/Applications"),
+            home.appendingPathComponent("Applications"),
+            home.appendingPathComponent("Applications/Setapp")
         ]
         var bundleIDs = Set<String>()
 
-        for root in appRoots where fileManager.fileExists(atPath: root.path) {
+        for root in Set(appRoots.map(\.standardizedFileURL)).sorted(by: { $0.path < $1.path }) where fileManager.fileExists(atPath: root.path) {
             guard let enumerator = fileManager.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles, .skipsPackageDescendants],
+                options: [.skipsHiddenFiles],
                 errorHandler: { _, _ in true }
             ) else { continue }
 
@@ -1016,6 +1103,7 @@ actor FileScanner {
 
     private func appLeftoverMatch(from url: URL) -> (bundleID: String, confidence: AppLeftoverConfidence)? {
         let path = url.path
+        let bundleID = probableBundleID(from: url)
         let confidence: AppLeftoverConfidence
         if path.contains("/Library/Receipts/") || path.contains("/private/var/db/receipts/") ||
             path.contains("/Library/Preferences/") || path.contains("/Library/LaunchAgents/") ||
@@ -1023,12 +1111,15 @@ actor FileScanner {
             confidence = .exactBundleID
         } else if path.contains("/Library/Containers/") || path.contains("/Library/HTTPStorages/") || path.contains("/Library/WebKit/") {
             confidence = .probableBundleID
+        } else if path.contains("/Library/Logs/"), bundleID == nil {
+            guard let logIdentifier = logLeftoverIdentifier(from: url) else { return nil }
+            return (logIdentifier, .weakNameMatch)
         } else {
             confidence = .weakNameMatch
         }
 
-        guard let bundleID = probableBundleID(from: url) else { return nil }
-        return (bundleID, confidence)
+        guard let probableBundleID = bundleID else { return nil }
+        return (probableBundleID, confidence)
     }
 
     private func probableBundleID(from url: URL) -> String? {
@@ -1039,6 +1130,34 @@ actor FileScanner {
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")
         guard name.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
         return name
+    }
+
+    private func isAppleOwnedBundleID(_ bundleID: String) -> Bool {
+        bundleID.hasPrefix("com.apple.")
+    }
+
+    private func logLeftoverIdentifier(from url: URL) -> String? {
+        if let children = try? fileManager.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) {
+            for child in children {
+                if let bundleID = probableBundleID(from: child) {
+                    return bundleID
+                }
+            }
+        }
+
+        let name = url.deletingPathExtension().lastPathComponent
+        let normalized = name
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "-")
+        let ignoredNames = Set(["log", "logs", "crashreporter", "diagnosticreports", "diagnostics"])
+        guard normalized.count >= 3, !ignoredNames.contains(normalized) else { return nil }
+        return "log.\(normalized)"
     }
 
     private func developerDataRoots(home: URL) -> [DeveloperDataRoot] {
@@ -1077,10 +1196,10 @@ actor FileScanner {
             DeveloperDataRoot(url: home.appendingPathComponent(".cargo/registry/cache"), sourceName: "Cargo Registry Cache", warning: nil),
             DeveloperDataRoot(url: home.appendingPathComponent(".cargo/git/checkouts"), sourceName: "Cargo Git Checkouts", warning: nil),
             DeveloperDataRoot(url: home.appendingPathComponent(".rustup/downloads"), sourceName: "Rustup Downloads", warning: nil),
-            DeveloperDataRoot(url: home.appendingPathComponent("Library/Containers/com.docker.docker"), sourceName: "Docker Container Data", warning: "Review Docker storage before removing; it may include images, volumes, and VM data."),
-            DeveloperDataRoot(url: home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms"), sourceName: "Docker VM Storage", warning: "Docker VM storage may include images and volumes."),
-            DeveloperDataRoot(url: home.appendingPathComponent("Library/Group Containers/group.com.docker"), sourceName: "Docker Group Container", warning: "Review Docker storage before removing."),
-            DeveloperDataRoot(url: home.appendingPathComponent("Library/Group Containers/group.com.docker/cache"), sourceName: "Docker Cache", warning: nil)
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms"), sourceName: "Docker VM Storage", warning: "Review-only. Docker VM storage can include images, containers, volumes, and Docker.raw. Prefer Docker prune commands and stop Docker before manual cleanup."),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Containers/com.docker.docker/Data/vms/0/data"), sourceName: "Docker Images and Volumes", warning: "Review-only. This location can contain Docker.raw, images, containers, and volumes; do not remove while Docker is running."),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Group Containers/group.com.docker/cache"), sourceName: "Docker Build Cache", warning: "Review-only. Prefer Docker prune commands for cache cleanup."),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Group Containers/group.com.docker/Library/Caches"), sourceName: "Docker App Cache", warning: "Review-only. Prefer Docker Desktop cleanup controls for app cache cleanup.")
         ]
     }
 
@@ -1088,6 +1207,18 @@ actor FileScanner {
         developerDataRoots(home: home).first { root in
             url.standardizedFileURL.path == root.url.standardizedFileURL.path
         }
+    }
+
+    private func pythonProjectRoots(home: URL) -> [URL] {
+        [
+            home.appendingPathComponent("Developer"),
+            home.appendingPathComponent("Projects"),
+            home.appendingPathComponent("Code"),
+            home.appendingPathComponent("Documents"),
+            home.appendingPathComponent("Desktop"),
+            home.appendingPathComponent("src"),
+            home.appendingPathComponent("work")
+        ]
     }
 
     private func browserCacheRoots(home: URL) -> [BrowserCacheRoot] {
