@@ -304,9 +304,13 @@ struct DashboardDetailView: View {
 
                     Button {
                         manager.selectRecommended()
-                        showingDeleteAlert = true
+                        if manager.showDirectTrashActions {
+                            showingDeleteAlert = true
+                        } else {
+                            manager.moveSelectedToStage()
+                        }
                     } label: {
-                        Label("Clean Recommended", systemImage: "checklist.checked")
+                        Label(manager.showDirectTrashActions ? "Clean Recommended" : "Stage Recommended", systemImage: "checklist.checked")
                     }
                     .disabled(manager.items.isEmpty || manager.isScanning)
 

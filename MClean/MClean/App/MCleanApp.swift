@@ -213,6 +213,13 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Cleanup Actions") {
+                Toggle("Show direct Move to Trash actions", isOn: $manager.showDirectTrashActions)
+                Text("When off, primary cleanup controls route selected files through Stage first.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }

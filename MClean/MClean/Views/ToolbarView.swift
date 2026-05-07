@@ -103,14 +103,16 @@ struct ToolbarView: View {
             }
             .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
 
-            Button {
-                showingDeleteAlert = true
-            } label: {
-                Label("Move to Trash", systemImage: "trash")
+            if manager.showDirectTrashActions {
+                Button {
+                    showingDeleteAlert = true
+                } label: {
+                    Label("Move to Trash", systemImage: "trash")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .disabled(!manager.selectedItems.contains(where: \.canMoveToTrash) || isScanning)
         }
         .padding(18)
         .sheet(isPresented: $showingTrashHistory) {
@@ -199,13 +201,15 @@ struct AppLeftoverReviewView: View {
                 Text("\(manager.selectedItems.filter { $0.category == .appLeftovers && $0.canMoveToTrash }.count) selected")
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button {
-                    isPresented = false
-                    showingDeleteAlert = true
-                } label: {
-                    Label("Review Selected in Trash", systemImage: "trash")
+                if manager.showDirectTrashActions {
+                    Button {
+                        isPresented = false
+                        showingDeleteAlert = true
+                    } label: {
+                        Label("Review Selected in Trash", systemImage: "trash")
+                    }
+                    .disabled(!manager.selectedItems.contains { $0.category == .appLeftovers && $0.canMoveToTrash })
                 }
-                .disabled(!manager.selectedItems.contains { $0.category == .appLeftovers && $0.canMoveToTrash })
                 Button {
                     manager.moveSelectedToStage()
                     isPresented = false
@@ -327,13 +331,15 @@ struct DuplicateReviewView: View {
                 }
                 .disabled(selectedDuplicateCount == 0)
 
-                Button(role: .destructive) {
-                    showingDeleteAlert = true
-                    isPresented = false
-                } label: {
-                    Label("Review Trash", systemImage: "trash")
+                if manager.showDirectTrashActions {
+                    Button(role: .destructive) {
+                        showingDeleteAlert = true
+                        isPresented = false
+                    } label: {
+                        Label("Review Trash", systemImage: "trash")
+                    }
+                    .disabled(selectedDuplicateCount == 0)
                 }
-                .disabled(selectedDuplicateCount == 0)
             }
             .padding(20)
         }

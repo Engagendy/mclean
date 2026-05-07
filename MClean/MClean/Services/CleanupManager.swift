@@ -22,6 +22,12 @@ final class CleanupManager: ObservableObject {
             savePreferences()
         }
     }
+    @Published var showDirectTrashActions = true {
+        didSet {
+            guard isReadyToPersistPreferences else { return }
+            savePreferences()
+        }
+    }
     @Published var savedScanProfiles: [SavedScanProfile] = [] {
         didSet {
             guard isReadyToPersistPreferences else { return }
@@ -147,6 +153,7 @@ final class CleanupManager: ObservableObject {
         scanMode = preferences.scanMode
         savedScanProfiles = preferences.savedProfiles
         stageReminderAgeDays = preferences.stageReminderAgeDays
+        showDirectTrashActions = preferences.showDirectTrashActions
         scheduledScansEnabled = preferences.scheduledScansEnabled
         scheduledScanIntervalDays = preferences.scheduledScanIntervalDays
         lastScheduledScanAt = preferences.lastScheduledScanAt
@@ -686,6 +693,7 @@ final class CleanupManager: ObservableObject {
             options: options,
             savedProfiles: savedScanProfiles,
             stageReminderAgeDays: stageReminderAgeDays,
+            showDirectTrashActions: showDirectTrashActions,
             scheduledScansEnabled: scheduledScansEnabled,
             scheduledScanIntervalDays: scheduledScanIntervalDays,
             lastScheduledScanAt: lastScheduledScanAt

@@ -107,14 +107,14 @@ Acceptance criteria:
 
 ### Settings Screen
 
-Status: `[~]`
+Status: `[x]`
 
 Implementation tasks:
 
 - `[x]` Add a macOS Settings scene or in-app settings sheet.
 - `[x]` Move scan options into Settings where they persist between app launches.
 - `[x]` Add exclusions management.
-- `[~]` Add Stage preferences such as reminder age and default action visibility.
+- `[x]` Add Stage preferences such as reminder age and default action visibility.
 - `[x]` Add browser and developer module toggles.
 
 Acceptance criteria:
