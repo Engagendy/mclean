@@ -123,6 +123,14 @@ The packaged DMG is written to `build/MClean-<version>-<arch>.dmg`.
 
 Options: `--arch arm64|x86_64`, `--version X.Y.Z`
 
+### Command-Line Scan
+
+```bash
+/Applications/MClean.app/Contents/MacOS/MClean --cli-scan --profile quick --max-results 500
+```
+
+CLI mode writes JSON scan results only. It never stages, trashes, or deletes files.
+
 ## Release
 
 Releases follow the same pattern as the MPP Viewer project:

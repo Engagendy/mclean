@@ -257,15 +257,15 @@ Acceptance criteria:
 
 ### Command-Line Mode
 
-Status: `[ ]`
+Status: `[x]`
 
 Implementation tasks:
 
-- `[ ]` Define a minimal CLI contract for scan/report only.
-- `[ ]` Add JSON output for automation.
-- `[ ]` Add profile selection flags.
-- `[ ]` Keep destructive operations out of the first CLI version.
-- `[ ]` Document examples.
+- `[x]` Define a minimal CLI contract for scan/report only.
+- `[x]` Add JSON output for automation.
+- `[x]` Add profile selection flags.
+- `[x]` Keep destructive operations out of the first CLI version.
+- `[x]` Document examples.
 
 Acceptance criteria:
 

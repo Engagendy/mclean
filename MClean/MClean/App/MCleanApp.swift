@@ -8,6 +8,9 @@ struct MCleanApp: App {
     @StateObject private var manager = CleanupManager()
 
     init() {
+        if MCleanCLI.shouldRun {
+            MCleanCLI.runAndExit()
+        }
         MCleanWindowState.clearSavedLayout()
     }
 
