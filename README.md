@@ -84,7 +84,7 @@ MClean can scan normal user folders without Full Disk Access. macOS blocks some 
 - File details panel with risk, protection, duplicate, and app-leftover metadata.
 - Trash history with restore support for recently moved items.
 - Duplicate file grouping and app-leftover detection.
-- Developer cleanup coverage for Xcode, simulators, npm, pnpm, Gradle, Docker, Go, Cargo, and related caches.
+- Developer cleanup coverage for Xcode, simulators, npm, pnpm, Python, Gradle, Docker, Go, Cargo, and related caches.
 
 ## Roadmap
 

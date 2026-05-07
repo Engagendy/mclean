@@ -69,7 +69,7 @@ Implementation tasks:
 - `[x]` Add Xcode-specific coverage for DerivedData, Archives, DeviceSupport, Products, Previews, XCTestDevices, and simulator caches.
 - `[~]` Add Docker preview for caches, images, volumes, and VM storage without deleting Docker resources blindly.
 - `[x]` Add npm, pnpm, and yarn cache modules.
-- `[ ]` Add Python cache modules for pip, virtualenv, Poetry, Pipenv, pyenv build caches, and common `__pycache__` handling.
+- `[~]` Add Python cache modules for pip, virtualenv, Poetry, Pipenv, pyenv build caches, and common `__pycache__` handling.
 - `[x]` Add Rust, Go, and Gradle cache modules with source-specific explanations.
 - `[ ]` Add source-specific tests for developer roots.
 
