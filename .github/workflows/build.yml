@@ -12,6 +12,9 @@ jobs:
   build:
     name: Build DMG (${{ matrix.arch }})
     runs-on: macos-15
+    env:
+      HAS_SIGNING_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' }}
+      HAS_NOTARY_CREDENTIALS: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' }}
     strategy:
       matrix:
         arch: [arm64]
@@ -31,8 +34,45 @@ jobs:
         with:
           xcode-version: '16'
 
+      - name: Import Developer ID certificate
+        if: env.HAS_SIGNING_CERTIFICATE == 'true'
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/mclean-signing.keychain-db"
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
+          echo "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Store notarization credentials
+        if: env.HAS_NOTARY_CREDENTIALS == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials mclean-notary \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+
       - name: Build & Package
-        run: ./scripts/package.sh --arch ${{ matrix.arch }} --version ${{ steps.version.outputs.version }}
+        run: |
+          PACKAGE_ARGS=(--arch "${{ matrix.arch }}" --version "${{ steps.version.outputs.version }}")
+          if [[ "$HAS_SIGNING_CERTIFICATE" == "true" ]]; then
+            PACKAGE_ARGS+=(--sign)
+          fi
+          if [[ "$HAS_SIGNING_CERTIFICATE" == "true" && "$HAS_NOTARY_CREDENTIALS" == "true" ]]; then
+            PACKAGE_ARGS+=(--notarize --notary-profile mclean-notary)
+          fi
+          ./scripts/package.sh "${PACKAGE_ARGS[@]}"
 
       - name: Upload DMG artifact
         if: success()
@@ -96,7 +136,7 @@ jobs:
           ### Gatekeeper Bypass
           If macOS blocks the app, run:
           ```
-          xattr -cr /Applications/MClean.app
+          xattr -cr /Applications/theMClean.app
           ```
           FOOTER
 
@@ -123,7 +163,7 @@ jobs:
       - name: Download DMG and compute SHA256
         id: sha
         run: |
-          DMG_URL="https://github.com/Engagendy/mclean/releases/download/${{ steps.version.outputs.tag }}/MClean-${{ steps.version.outputs.version }}-arm64.dmg"
+          DMG_URL="https://github.com/Engagendy/mclean/releases/download/${{ steps.version.outputs.tag }}/theMClean-${{ steps.version.outputs.version }}-arm64.dmg"
           for i in $(seq 1 30); do
             if curl -fsSL -o /tmp/mclean.dmg "$DMG_URL" 2>/dev/null; then
               echo "Downloaded DMG"
@@ -169,7 +209,7 @@ jobs:
             version "$VERSION"
             sha256 "$SHA"
 
-            url "https://github.com/Engagendy/mclean/releases/download/$TAG/MClean-#{version}-arm64.dmg",
+            url "https://github.com/Engagendy/mclean/releases/download/$TAG/theMClean-#{version}-arm64.dmg",
                 verified: "github.com/Engagendy/mclean/"
 
             name "MClean"
@@ -178,11 +218,11 @@ jobs:
 
             depends_on macos: ">= :sonoma"
 
-            app "MClean.app"
+            app "theMClean.app"
 
             postflight do
               system_command "/usr/bin/xattr",
-                             args: ["-cr", "#{appdir}/MClean.app"],
+                             args: ["-cr", "#{appdir}/theMClean.app"],
                              sudo: false
             end
 

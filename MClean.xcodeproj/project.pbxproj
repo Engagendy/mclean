@@ -27,12 +27,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		17CA6BA1CB19383218F17495 /* CleanupItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupItem.swift; sourceTree = "<group>"; };
 		0CBF8FFB84A2B8A447F1550B /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		17CA6BA1CB19383218F17495 /* CleanupItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupItem.swift; sourceTree = "<group>"; };
 		255486FCD2078420B0CC2166 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		26E02991D85017272FF10231 /* MCleanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCleanApp.swift; sourceTree = "<group>"; };
 		32A79154C1A8CA8B1C43F87C /* ScanResultsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResultsStore.swift; sourceTree = "<group>"; };
-		3C9886AD870738FAC7FADDA2 /* MClean.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MClean.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3C9886AD870738FAC7FADDA2 /* theMClean.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = theMClean.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4695A1B4B9DA928B023F4D1D /* ResultsTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsTable.swift; sourceTree = "<group>"; };
 		487FFCEF9665C96CCBAE7939 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		52FACBCF319C9DD24A729BC7 /* FullDiskAccessService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullDiskAccessService.swift; sourceTree = "<group>"; };
@@ -89,7 +89,7 @@
 		8E19ED0015ACF4004E3C4D15 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				3C9886AD870738FAC7FADDA2 /* MClean.app */,
+				3C9886AD870738FAC7FADDA2 /* theMClean.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -139,7 +139,7 @@
 			packageProductDependencies = (
 			);
 			productName = MClean;
-			productReference = 3C9886AD870738FAC7FADDA2 /* MClean.app */;
+			productReference = 3C9886AD870738FAC7FADDA2 /* theMClean.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -218,20 +218,27 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGN_ENTITLEMENTS = MClean/Resources/MClean.entitlements;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGN_ENTITLEMENTS = MClean/Resources/MCleanAppStore.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 107;
+				DEVELOPMENT_TEAM = 7JM77223V5;
+				ENABLE_APP_SANDBOX = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MClean/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = theMClean;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.engagendy.MClean;
-				PRODUCT_NAME = MClean;
+				PRODUCT_NAME = theMClean;
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -361,20 +368,27 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGNING_ALLOWED = NO;
-				CODE_SIGN_ENTITLEMENTS = MClean/Resources/MClean.entitlements;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Manual;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGN_ENTITLEMENTS = MClean/Resources/MCleanAppStore.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 107;
+				DEVELOPMENT_TEAM = 7JM77223V5;
+				ENABLE_APP_SANDBOX = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MClean/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = theMClean;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.engagendy.MClean;
-				PRODUCT_NAME = MClean;
+				PRODUCT_NAME = theMClean;
 				SDKROOT = macosx;
 			};
 			name = Release;

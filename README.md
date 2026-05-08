@@ -62,7 +62,7 @@ MClean is not signed with an Apple Developer certificate yet, so macOS may show 
 **Option B - Remove quarantine attribute:**
 
 ```bash
-xattr -cr /Applications/MClean.app
+xattr -cr /Applications/theMClean.app
 ```
 
 **Option C - System Settings:** go to **System Settings -> Privacy & Security**, scroll down, and click **Open Anyway** next to the MClean message.
@@ -153,14 +153,46 @@ Select the **MClean** scheme, choose **My Mac** as the destination, and run the 
 ./scripts/package.sh --version 1.0.0
 ```
 
-The packaged DMG is written to `build/MClean-<version>-<arch>.dmg`.
+The packaged DMG is written to `build/theMClean-<version>-<arch>.dmg`.
 
-Options: `--arch arm64|x86_64`, `--version X.Y.Z`
+Options: `--arch arm64|x86_64`, `--version X.Y.Z`, `--sign`, `--identity NAME`, `--notarize`, `--notary-profile NAME`
+
+### Signed Release Build
+
+To build a Developer ID signed DMG:
+
+```bash
+./scripts/package.sh --version 1.0.0 --arch arm64 --sign
+```
+
+To sign, notarize, and staple the DMG:
+
+```bash
+xcrun notarytool store-credentials mclean-notary \
+  --apple-id YOUR_APPLE_ID_EMAIL \
+  --team-id YOUR_TEAM_ID \
+  --password YOUR_APP_SPECIFIC_PASSWORD
+
+./scripts/package.sh --version 1.0.0 --arch arm64 --sign --notarize --notary-profile mclean-notary
+```
+
+Signing requires a **Developer ID Application** certificate in the local keychain. In Xcode, open **Settings -> Accounts**, select the Apple Developer account, then manage certificates and add/download **Developer ID Application**.
+
+### Mac App Store Build
+
+The Xcode project is configured for App Store/Xcode Cloud builds with:
+
+- Product name: `theMClean`
+- Bundle identifier: `com.engagendy.MClean`
+- Team ID: `7JM77223V5`
+- App Store sandbox entitlements: `MClean/Resources/MCleanAppStore.entitlements`
+
+The direct GitHub DMG build signs with `MClean/Resources/MCleanDirect.entitlements` so it can remain separate from the Mac App Store sandbox profile.
 
 ### Command-Line Scan
 
 ```bash
-/Applications/MClean.app/Contents/MacOS/MClean --cli-scan --profile quick --max-results 500
+/Applications/theMClean.app/Contents/MacOS/theMClean --cli-scan --profile quick --max-results 500
 ```
 
 CLI mode writes JSON scan results only. It never stages, trashes, or deletes files.
