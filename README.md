@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://apps.apple.com/ae/app/themclean/id6767620941?mt=12"><img src="https://img.shields.io/badge/Mac%20App%20Store-available-blue?style=flat-square" alt="Mac App Store"></a>
   <a href="https://github.com/Engagendy/mclean/releases"><img src="https://img.shields.io/github/v/release/Engagendy/mclean?style=flat-square&label=download" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-macOS%2014%2B-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/swift-5-orange?style=flat-square" alt="Swift">
@@ -18,7 +19,7 @@
 
 ---
 
-MClean is a native SwiftUI macOS app for finding cleanup candidates on a Mac. It scans common cache, temporary, Downloads, large-file, developer, browser-cache, duplicate, and app-leftover locations, then lets the user review selected items, move them to Stage for testing, or move them to Trash.
+theMClean is a native SwiftUI macOS app for finding cleanup candidates on a Mac. It scans common cache, temporary, Downloads, large-file, developer, browser-cache, duplicate, and app-leftover locations, then lets the user review selected items, move them to Stage for testing, or move them to Trash.
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="MClean dashboard showing scan modes, disk usage, cleanup potential, and category totals" width="900">
@@ -34,11 +35,17 @@ MClean is a native SwiftUI macOS app for finding cleanup candidates on a Mac. It
 
 ## Quick Start
 
-1. Install with Homebrew or download the latest DMG from [GitHub Releases](https://github.com/Engagendy/mclean/releases).
-2. Open MClean and press **Scan**. The app does not scan automatically on launch.
+1. Install from the [Mac App Store](https://apps.apple.com/ae/app/themclean/id6767620941?mt=12), Homebrew, or the latest signed DMG from [GitHub Releases](https://github.com/Engagendy/mclean/releases).
+2. Open theMClean and press **Scan**. The app does not scan automatically on launch.
 3. Review the streamed results, sort by size, select the files you want, then move them to Stage for testing or move them to Trash.
 
 ## Installation
+
+### Mac App Store
+
+Install the latest App Store build from:
+
+https://apps.apple.com/ae/app/themclean/id6767620941?mt=12
 
 ### Homebrew (recommended)
 
@@ -50,12 +57,12 @@ brew install --cask mclean
 ### Direct Download
 
 1. Download the latest `.dmg` from [GitHub Releases](https://github.com/Engagendy/mclean/releases).
-2. Open the DMG and drag **MClean** to your Applications folder.
-3. On first launch, right-click the app, choose **Open**, then confirm **Open**.
+2. Open the DMG and drag **theMClean** to your Applications folder.
+3. Open the app from Applications.
 
 ### Gatekeeper Bypass
 
-MClean is not signed with an Apple Developer certificate yet, so macOS may show an "unidentified developer" warning.
+GitHub DMG builds are signed and notarized. If macOS still shows a launch warning after a manual download, use one of these options:
 
 **Option A - Right-click Open (recommended):** right-click or Control-click the app, choose **Open**, then click **Open**.
 
@@ -69,13 +76,21 @@ xattr -cr /Applications/theMClean.app
 
 ### Full Disk Access
 
-MClean can scan normal user folders without Full Disk Access. macOS blocks some protected locations unless you grant access.
+theMClean can scan normal user folders without Full Disk Access. macOS blocks some protected locations unless you grant access.
 
-1. Open MClean.
+1. Open theMClean.
 2. Click **Open Full Disk Access** in the banner, or open **System Settings -> Privacy & Security -> Full Disk Access**.
-3. Add **MClean** from `/Applications`.
-4. Turn the switch on for MClean.
-5. Quit and reopen MClean, then scan again.
+3. Add **theMClean** from `/Applications`.
+4. Turn the switch on for theMClean.
+5. Quit and reopen theMClean, then scan again.
+
+## Latest Updates
+
+- Available on the Mac App Store as **theMClean**.
+- Signed and notarized GitHub DMG builds for direct download.
+- Stage-first cleanup workflow with restore, Trash, and permanent delete options from Stage.
+- Better cleanup coverage for app leftovers, browser caches, developer caches, duplicates, and Docker preview items.
+- In-app Help with screenshots for scan modes, review flow, Stage, Settings, and Full Disk Access.
 
 ## Features
 
