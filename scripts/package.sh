@@ -9,7 +9,7 @@ APP_BUNDLE="theMClean.app"
 BUNDLE_ID="com.engagendy.MClean"
 SCHEME="MClean"
 XCODEPROJ="$PROJECT_ROOT/MClean.xcodeproj"
-VERSION="1.0.0"
+VERSION="1.0.9"
 ARCH="$(uname -m)"
 SIGN_APP=0
 NOTARIZE_DMG=0
@@ -59,7 +59,7 @@ case "$ARCH" in
 esac
 
 echo "==========================================================="
-echo "  MClean - Build & Package"
+echo "  theMClean - Build & Package"
 echo "  Version: $VERSION"
 echo "  Architecture: $ARCH"
 if [[ "$SIGN_APP" -eq 1 ]]; then

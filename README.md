@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="MClean/MClean/Assets.xcassets/AppIcon.appiconset/icon-256.png" width="128" height="128" alt="MClean Icon">
+  <img src="MClean/MClean/Assets.xcassets/AppIcon.appiconset/icon-256.png" width="128" height="128" alt="theMClean Icon">
 </p>
 
-<h1 align="center">MClean</h1>
+<h1 align="center">theMClean</h1>
 
 <p align="center">
   <strong>A native macOS cleanup scanner for finding cache, temporary, old, and large files</strong><br>
@@ -22,10 +22,10 @@
 theMClean is a native SwiftUI macOS app for finding cleanup candidates on a Mac. It scans common cache, temporary, Downloads, large-file, developer, browser-cache, duplicate, and app-leftover locations, then lets the user review selected items, move them to Stage for testing, or move them to Trash.
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="MClean dashboard showing scan modes, disk usage, cleanup potential, and category totals" width="900">
+  <img src="docs/screenshots/dashboard.png" alt="theMClean dashboard showing scan modes, disk usage, cleanup potential, and category totals" width="900">
 </p>
 
-## Why MClean
+## Why theMClean
 
 - **Designed for review, not surprise deletion.** Cleanup starts with scan results and explicit selection.
 - **Stage-first workflow.** Move files to Stage, test your apps, then restore, Trash, or delete staged items.
@@ -72,7 +72,7 @@ GitHub DMG builds are signed and notarized. If macOS still shows a launch warnin
 xattr -cr /Applications/theMClean.app
 ```
 
-**Option C - System Settings:** go to **System Settings -> Privacy & Security**, scroll down, and click **Open Anyway** next to the MClean message.
+**Option C - System Settings:** go to **System Settings -> Privacy & Security**, scroll down, and click **Open Anyway** next to the theMClean message.
 
 ### Full Disk Access
 
@@ -122,13 +122,13 @@ theMClean can scan normal user folders without Full Disk Access. macOS blocks so
 
 The dashboard summarizes disk usage, cleanup potential, selected bytes, scan progress, and category totals.
 
-![MClean dashboard](docs/screenshots/dashboard.png)
+![theMClean dashboard](docs/screenshots/dashboard.png)
 
 ### Settings
 
 Settings manage scan profiles, exclusions, Stage reminders, scheduled scan reporting, and direct Trash visibility.
 
-![MClean settings](docs/screenshots/settings.png)
+![theMClean settings](docs/screenshots/settings.png)
 
 ## In-App Help
 
@@ -140,7 +140,7 @@ The tracked implementation plan lives in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION
 
 ## Safety Model
 
-MClean defaults to reversible cleanup paths. Selected items can be moved to Stage first, then restored, moved to Trash, or permanently deleted from the Stage view after confirmation. The direct cleanup action still moves selected items to the macOS Trash so the user can restore them if needed.
+theMClean defaults to reversible cleanup paths. Selected items can be moved to Stage first, then restored, moved to Trash, or permanently deleted from the Stage view after confirmation. The direct cleanup action still moves selected items to the macOS Trash so the user can restore them if needed.
 
 ## Build
 
@@ -165,7 +165,7 @@ Select the **MClean** scheme, choose **My Mac** as the destination, and run the 
 ### Building a DMG for Distribution
 
 ```bash
-./scripts/package.sh --version 1.0.0
+./scripts/package.sh --version 1.0.9
 ```
 
 The packaged DMG is written to `build/theMClean-<version>-<arch>.dmg`.
@@ -177,7 +177,7 @@ Options: `--arch arm64|x86_64`, `--version X.Y.Z`, `--sign`, `--identity NAME`, 
 To build a Developer ID signed DMG:
 
 ```bash
-./scripts/package.sh --version 1.0.0 --arch arm64 --sign
+./scripts/package.sh --version 1.0.9 --arch arm64 --sign
 ```
 
 To sign, notarize, and staple the DMG:
@@ -188,7 +188,7 @@ xcrun notarytool store-credentials mclean-notary \
   --team-id YOUR_TEAM_ID \
   --password YOUR_APP_SPECIFIC_PASSWORD
 
-./scripts/package.sh --version 1.0.0 --arch arm64 --sign --notarize --notary-profile mclean-notary
+./scripts/package.sh --version 1.0.9 --arch arm64 --sign --notarize --notary-profile mclean-notary
 ```
 
 Signing requires a **Developer ID Application** certificate in the local keychain. In Xcode, open **Settings -> Accounts**, select the Apple Developer account, then manage certificates and add/download **Developer ID Application**.
@@ -217,8 +217,8 @@ CLI mode writes JSON scan results only. It never stages, trashes, or deletes fil
 Releases follow the same pattern as the MPP Viewer project:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.9
+git push origin v1.0.9
 ```
 
 On tag push, GitHub Actions:

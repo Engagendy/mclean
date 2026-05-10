@@ -122,10 +122,10 @@ enum MCleanCLI {
     }
 
     private static let helpText = """
-    MClean CLI scan mode
+    theMClean CLI scan mode
 
     Usage:
-      MClean --cli-scan [--profile quick|deep|developer|downloads-review] [--max-results N]
+      theMClean --cli-scan [--profile quick|deep|developer|downloads-review] [--max-results N]
 
     The CLI only scans and writes JSON. It never stages, trashes, or deletes files.
     """

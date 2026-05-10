@@ -79,7 +79,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dmg-${{ matrix.arch }}
-          path: build/MClean-*.dmg
+          path: build/theMClean-*.dmg
 
   release:
     name: Create GitHub Release
@@ -124,7 +124,7 @@ jobs:
 
           ### Direct Download
           1. Download the `.dmg` file below
-          2. Open the DMG and drag **MClean** to Applications
+          2. Open the DMG and drag **theMClean** to Applications
           3. On first launch, right-click the app, choose **Open**, then confirm
 
           ### Homebrew
@@ -212,7 +212,7 @@ jobs:
             url "https://github.com/Engagendy/mclean/releases/download/$TAG/theMClean-#{version}-arm64.dmg",
                 verified: "github.com/Engagendy/mclean/"
 
-            name "MClean"
+            name "theMClean"
             desc "Native macOS cleanup scanner for cache, temporary, old, and large files"
             homepage "https://github.com/Engagendy/mclean"
 
