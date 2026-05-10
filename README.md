@@ -165,7 +165,7 @@ Select the **MClean** scheme, choose **My Mac** as the destination, and run the 
 ### Building a DMG for Distribution
 
 ```bash
-./scripts/package.sh --version 1.0.9
+./scripts/package.sh --version 1.0.10
 ```
 
 The packaged DMG is written to `build/theMClean-<version>-<arch>.dmg`.
@@ -177,7 +177,7 @@ Options: `--arch arm64|x86_64`, `--version X.Y.Z`, `--sign`, `--identity NAME`, 
 To build a Developer ID signed DMG:
 
 ```bash
-./scripts/package.sh --version 1.0.9 --arch arm64 --sign
+./scripts/package.sh --version 1.0.10 --arch arm64 --sign
 ```
 
 To sign, notarize, and staple the DMG:
@@ -188,7 +188,7 @@ xcrun notarytool store-credentials mclean-notary \
   --team-id YOUR_TEAM_ID \
   --password YOUR_APP_SPECIFIC_PASSWORD
 
-./scripts/package.sh --version 1.0.9 --arch arm64 --sign --notarize --notary-profile mclean-notary
+./scripts/package.sh --version 1.0.10 --arch arm64 --sign --notarize --notary-profile mclean-notary
 ```
 
 Signing requires a **Developer ID Application** certificate in the local keychain. In Xcode, open **Settings -> Accounts**, select the Apple Developer account, then manage certificates and add/download **Developer ID Application**.
@@ -217,8 +217,8 @@ CLI mode writes JSON scan results only. It never stages, trashes, or deletes fil
 Releases follow the same pattern as the MPP Viewer project:
 
 ```bash
-git tag v1.0.9
-git push origin v1.0.9
+git tag v1.0.10
+git push origin v1.0.10
 ```
 
 On tag push, GitHub Actions:

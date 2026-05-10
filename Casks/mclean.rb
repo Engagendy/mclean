@@ -1,5 +1,5 @@
 cask "mclean" do
-  version "1.0.9"
+  version "1.0.10"
   sha256 :no_check
 
   url "https://github.com/Engagendy/mclean/releases/download/v#{version}/theMClean-#{version}-arm64.dmg",

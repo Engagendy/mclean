@@ -48,6 +48,10 @@ struct ResultsTable: View {
                             .lineLimit(1)
                     }
                 }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    manager.toggleSelection(for: item)
+                }
                 .contextMenu {
                     Button {
                         manager.reveal(item)
@@ -75,50 +79,76 @@ struct ResultsTable: View {
             TableColumn("Size", value: \.size) { item in
                 Text(ByteCount.string(item.size))
                     .monospacedDigit()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        manager.toggleSelection(for: item)
+                    }
             }
             .width(110)
 
             TableColumn("Category", value: \.category.rawValue) { item in
                 Label(item.category.rawValue, systemImage: item.category.symbolName)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        manager.toggleSelection(for: item)
+                    }
             }
             .width(150)
 
             TableColumn("Risk") { item in
                 RiskBadge(risk: item.risk)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        manager.toggleSelection(for: item)
+                    }
             }
             .width(90)
 
             TableColumn("Protection") { item in
                 ProtectionBadge(protection: item.protection)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        manager.toggleSelection(for: item)
+                    }
             }
             .width(120)
 
             TableColumn("Source") { item in
                 Label(item.sourceName ?? item.resolvedSourceKind.rawValue, systemImage: item.resolvedSourceKind.symbolName)
                     .lineLimit(1)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        manager.toggleSelection(for: item)
+                    }
             }
             .width(160)
 
             TableColumn("Status") { item in
-                if item.existsOnDisk {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.reason)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                        if let confidence = item.appLeftoverConfidence {
-                            Text(confidence.rawValue)
-                                .font(.caption)
+                Group {
+                    if item.existsOnDisk {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.reason)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            if let confidence = item.appLeftoverConfidence {
+                                Text(confidence.rawValue)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if let duplicateCount = item.duplicateCount {
+                                Text("\(duplicateCount) duplicate matches")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                        if let duplicateCount = item.duplicateCount {
-                            Text("\(duplicateCount) duplicate matches")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                    } else {
+                        Label("Missing", systemImage: "questionmark.folder")
+                            .foregroundStyle(.red)
                     }
-                } else {
-                    Label("Missing", systemImage: "questionmark.folder")
-                        .foregroundStyle(.red)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    manager.toggleSelection(for: item)
                 }
             }
             .width(min: 130, ideal: 180)
@@ -126,6 +156,10 @@ struct ResultsTable: View {
             TableColumn("Modified") { item in
                 Text(item.modifiedAt.map(Self.dateFormatter.string(from:)) ?? "-")
                     .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        manager.toggleSelection(for: item)
+                    }
             }
             .width(110)
 
