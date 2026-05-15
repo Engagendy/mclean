@@ -14,7 +14,7 @@ struct FullDiskAccessBanner: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Full Disk Access improves scan coverage")
                         .font(.headline)
-                    Text("Open Full Disk Access, add MClean, turn it on, then quit and reopen the app. This lets MClean inspect protected locations like Mail, Messages, Safari, iPhone backups, and large app containers.")
+                    Text("Open Full Disk Access, add theMClean, turn it on, then quit and reopen the app. This lets theMClean inspect protected locations like Mail, Messages, Safari, iPhone backups, and large app containers.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
