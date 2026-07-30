@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 struct ContentView: View {
@@ -285,6 +286,7 @@ struct DashboardDetailView: View {
     @EnvironmentObject private var manager: CleanupManager
     @Binding var showingDeleteAlert: Bool
     @Binding var showingHelp: Bool
+    @State private var showingAppUninstall = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -344,6 +346,12 @@ struct DashboardDetailView: View {
                         .disabled(manager.items.isEmpty || manager.isScanning)
 
                         Button {
+                            showingAppUninstall = true
+                        } label: {
+                            Label("Uninstall App", systemImage: "app.dashed")
+                        }
+
+                        Button {
                             manager.refreshDiskSpace()
                         } label: {
                             Label("Refresh Disk Status", systemImage: "arrow.clockwise.circle")
@@ -379,6 +387,10 @@ struct DashboardDetailView: View {
             }
 
             StatusBar()
+        }
+        .sheet(isPresented: $showingAppUninstall) {
+            AppUninstallView(isPresented: $showingAppUninstall)
+                .environmentObject(manager)
         }
     }
 
@@ -449,6 +461,22 @@ struct CleanupDashboardView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 DiskUsageBar(snapshot: manager.diskSpace, reclaimableBytes: manager.summary.reclaimableBytes)
+                if manager.trashBytes > 0 {
+                    Label(
+                        "Trash contains \(ByteCount.string(manager.trashBytes)). Empty the Trash in Finder to reclaim it.",
+                        systemImage: "trash"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                if manager.localSnapshotCount > 0 {
+                    Label(
+                        "\(manager.localSnapshotCount) Time Machine local snapshot\(manager.localSnapshotCount == 1 ? "" : "s") on this volume. Space freed by cleanup can stay reserved until macOS purges them.",
+                        systemImage: "clock.arrow.circlepath"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 CategoryBreakdownView(totals: Array(manager.categoryTotals.prefix(8)))
             }
         }
@@ -632,10 +660,6 @@ private struct DiskUsageBar: View {
 private struct CategoryBreakdownView: View {
     let totals: [(category: CleanupCategory, bytes: Int64)]
 
-    private var maxBytes: Int64 {
-        totals.map(\.bytes).max() ?? 1
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("Findings by Category")
@@ -647,30 +671,27 @@ private struct CategoryBreakdownView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                ForEach(totals, id: \.category) { total in
-                    HStack(spacing: 8) {
-                        Label(total.category.rawValue, systemImage: total.category.symbolName)
-                            .font(.subheadline)
-                            .frame(width: 170, alignment: .leading)
-                            .lineLimit(1)
-
-                        GeometryReader { proxy in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(.secondary.opacity(0.12))
-                                Capsule()
-                                    .fill(categoryColor(total.category).opacity(0.78))
-                                    .frame(width: max(proxy.size.width * CGFloat(Double(total.bytes) / Double(maxBytes)), 4))
-                            }
-                        }
-                        .frame(height: 9)
-
+                Chart(totals, id: \.category) { total in
+                    BarMark(
+                        x: .value("Size", Double(total.bytes)),
+                        y: .value("Category", total.category.rawValue)
+                    )
+                    .foregroundStyle(categoryColor(total.category).opacity(0.82))
+                    .cornerRadius(4)
+                    .annotation(position: .trailing, alignment: .leading) {
                         Text(ByteCount.string(total.bytes))
-                            .font(.subheadline.monospacedDigit())
+                            .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
-                            .frame(width: 88, alignment: .trailing)
                     }
                 }
+                .chartXAxis(.hidden)
+                .chartYAxis {
+                    AxisMarks(preset: .aligned) { _ in
+                        AxisValueLabel()
+                            .font(.subheadline)
+                    }
+                }
+                .frame(height: CGFloat(totals.count) * 32 + 16)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

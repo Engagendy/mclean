@@ -84,13 +84,17 @@ theMClean can scan normal user folders without Full Disk Access. macOS blocks so
 4. Turn the switch on for theMClean.
 5. Quit and reopen theMClean, then scan again.
 
-## Latest Updates
+## Latest Updates (1.1.0)
 
-- Available on the Mac App Store as **theMClean**.
-- Signed and notarized GitHub DMG builds for direct download.
-- Stage-first cleanup workflow with restore, Trash, and permanent delete options from Stage.
-- Better cleanup coverage for app leftovers, browser caches, developer caches, duplicates, and Docker preview items.
-- In-app Help with screenshots for scan modes, review flow, Stage, Settings, and Full Disk Access.
+- Much faster scans: batched result streaming, cached file-existence checks, tiered duplicate hashing (64 KB prefix pass before full SHA-256), and concurrent hash workers.
+- App uninstaller: pick or drop a .app to review and remove its bundle, caches, containers, preferences, logs, launch agents, and receipts together.
+- Menu bar icon with disk status, last scan summary, stale-Stage reminder, and Scan Now.
+- Quick Look previews (spacebar) and CSV/JSON export of visible findings.
+- Undo (Cmd+Z) for Trash and Stage actions.
+- Native Swift Charts category breakdown, Trash-size and Time Machine snapshot notes on the dashboard.
+- Custom scan folders (including external volumes) for large-file and duplicate scans.
+- New coverage: old installer downloads (DMG/PKG/ISO/XIP) and simulator runtimes.
+- Localization groundwork with a String Catalog.
 
 ## Features
 
@@ -165,7 +169,7 @@ Select the **MClean** scheme, choose **My Mac** as the destination, and run the 
 ### Building a DMG for Distribution
 
 ```bash
-./scripts/package.sh --version 1.0.11
+./scripts/package.sh --version 1.1.0
 ```
 
 The packaged DMG is written to `build/theMClean-<version>-<arch>.dmg`.
@@ -177,7 +181,7 @@ Options: `--arch arm64|x86_64`, `--version X.Y.Z`, `--sign`, `--identity NAME`, 
 To build a Developer ID signed DMG:
 
 ```bash
-./scripts/package.sh --version 1.0.11 --arch arm64 --sign
+./scripts/package.sh --version 1.1.0 --arch arm64 --sign
 ```
 
 To sign, notarize, and staple the DMG:
@@ -188,7 +192,7 @@ xcrun notarytool store-credentials mclean-notary \
   --team-id YOUR_TEAM_ID \
   --password YOUR_APP_SPECIFIC_PASSWORD
 
-./scripts/package.sh --version 1.0.11 --arch arm64 --sign --notarize --notary-profile mclean-notary
+./scripts/package.sh --version 1.1.0 --arch arm64 --sign --notarize --notary-profile mclean-notary
 ```
 
 Signing requires a **Developer ID Application** certificate in the local keychain. In Xcode, open **Settings -> Accounts**, select the Apple Developer account, then manage certificates and add/download **Developer ID Application**.
@@ -217,8 +221,8 @@ CLI mode writes JSON scan results only. It never stages, trashes, or deletes fil
 Releases follow the same pattern as the MPP Viewer project:
 
 ```bash
-git tag v1.0.11
-git push origin v1.0.11
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 On tag push, GitHub Actions:

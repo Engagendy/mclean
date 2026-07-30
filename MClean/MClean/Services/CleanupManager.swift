@@ -4,6 +4,10 @@ import UserNotifications
 
 @MainActor
 final class CleanupManager: ObservableObject {
+    // Single shared instance so the SwiftUI scene and the AppKit status item
+    // controller observe the same state.
+    static let shared = CleanupManager()
+
     @Published var options = ScanOptions() {
         didSet {
             guard isReadyToPersistPreferences else { return }
@@ -52,8 +56,18 @@ final class CleanupManager: ObservableObject {
             savePreferences()
         }
     }
-    @Published var items: [CleanupItem] = []
-    @Published var selectedIDs = Set<CleanupItem.ID>()
+    @Published var showMenuBarExtra = true {
+        didSet {
+            guard isReadyToPersistPreferences else { return }
+            savePreferences()
+        }
+    }
+    @Published var items: [CleanupItem] = [] {
+        didSet { invalidateDerivedCaches(selectionOnly: false) }
+    }
+    @Published var selectedIDs = Set<CleanupItem.ID>() {
+        didSet { invalidateDerivedCaches(selectionOnly: true) }
+    }
     @Published var summary = ScanSummary()
     @Published var state: ScanState = .idle
     @Published var scanProgress = ScanProgress()
@@ -63,6 +77,8 @@ final class CleanupManager: ObservableObject {
     @Published var trashHistory: [TrashHistoryEntry] = []
     @Published var stageEntries: [StageEntry] = []
     @Published var diskSpace = DiskSpaceSnapshot()
+    @Published var localSnapshotCount = 0
+    @Published var trashBytes: Int64 = 0
 
     private let scanner = FileScanner()
     private var lastScannedAt: Date?
@@ -72,9 +88,34 @@ final class CleanupManager: ObservableObject {
     private var scheduledScanInProgress = false
     private var skippedScanPhases = Set<ScanPhase>()
     private var isReadyToPersistPreferences = false
+    private var activationObserver: NSObjectProtocol?
+    private var terminationObserver: NSObjectProtocol?
+    private var preferencesSaveTask: Task<Void, Never>?
+    private var streamedPaths = Set<String>()
+    private var pendingStreamedItems: [CleanupItem] = []
+    private var pendingStreamedSummary: ScanSummary?
+    private var streamFlushTask: Task<Void, Never>?
+
+    // Derived collections are cached because SwiftUI evaluates them many times
+    // per render pass; caches invalidate whenever items/selection change.
+    private var cachedSelectedItems: [CleanupItem]?
+    private var cachedDuplicateGroups: [DuplicateReviewGroup]?
+    private var cachedAppLeftoverGroups: [AppLeftoverGroup]?
+    private var cachedCategoryTotals: [(category: CleanupCategory, bytes: Int64)]?
+
+    private func invalidateDerivedCaches(selectionOnly: Bool) {
+        cachedSelectedItems = nil
+        guard !selectionOnly else { return }
+        cachedDuplicateGroups = nil
+        cachedAppLeftoverGroups = nil
+        cachedCategoryTotals = nil
+    }
 
     var selectedItems: [CleanupItem] {
-        items.filter { selectedIDs.contains($0.id) }
+        if let cachedSelectedItems { return cachedSelectedItems }
+        let computed = items.filter { selectedIDs.contains($0.id) }
+        cachedSelectedItems = computed
+        return computed
     }
 
     var selectedBytes: Int64 {
@@ -86,6 +127,13 @@ final class CleanupManager: ObservableObject {
     }
 
     var categoryTotals: [(category: CleanupCategory, bytes: Int64)] {
+        if let cachedCategoryTotals { return cachedCategoryTotals }
+        let computed = Self.computeCategoryTotals(items: items)
+        cachedCategoryTotals = computed
+        return computed
+    }
+
+    private static func computeCategoryTotals(items: [CleanupItem]) -> [(category: CleanupCategory, bytes: Int64)] {
         CleanupCategory.allCases.compactMap { category in
             let bytes = items
                 .filter { $0.category == category && $0.existsOnDisk }
@@ -100,6 +148,13 @@ final class CleanupManager: ObservableObject {
     }
 
     var duplicateGroups: [DuplicateReviewGroup] {
+        if let cachedDuplicateGroups { return cachedDuplicateGroups }
+        let computed = Self.computeDuplicateGroups(items: items)
+        cachedDuplicateGroups = computed
+        return computed
+    }
+
+    private static func computeDuplicateGroups(items: [CleanupItem]) -> [DuplicateReviewGroup] {
         Dictionary(grouping: items.filter { $0.duplicateGroupID != nil }, by: { $0.duplicateGroupID ?? "" })
             .compactMap { groupID, groupItems in
                 let existingItems = groupItems.filter(\.existsOnDisk)
@@ -116,6 +171,13 @@ final class CleanupManager: ObservableObject {
     }
 
     var appLeftoverGroups: [AppLeftoverGroup] {
+        if let cachedAppLeftoverGroups { return cachedAppLeftoverGroups }
+        let computed = Self.computeAppLeftoverGroups(items: items)
+        cachedAppLeftoverGroups = computed
+        return computed
+    }
+
+    private static func computeAppLeftoverGroups(items: [CleanupItem]) -> [AppLeftoverGroup] {
         Dictionary(grouping: items.filter { $0.category == .appLeftovers && $0.relatedBundleID != nil }, by: { $0.relatedBundleID ?? "" })
             .compactMap { bundleID, groupItems in
                 let existingItems = groupItems.filter(\.existsOnDisk)
@@ -157,6 +219,7 @@ final class CleanupManager: ObservableObject {
         scheduledScansEnabled = preferences.scheduledScansEnabled
         scheduledScanIntervalDays = preferences.scheduledScanIntervalDays
         lastScheduledScanAt = preferences.lastScheduledScanAt
+        showMenuBarExtra = preferences.showMenuBarExtra
         if let stored = ScanResultsStore.load() {
             items = stored.items
             summary = stored.summary
@@ -169,6 +232,50 @@ final class CleanupManager: ObservableObject {
         refreshDiskSpace()
         isReadyToPersistPreferences = true
         configureScheduleTimer()
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshItemExistence()
+            }
+        }
+        terminationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.flushPendingPreferenceSave()
+            }
+        }
+    }
+
+    /// Re-stats every finding off the main thread and updates the cached
+    /// `existsOnDisk` flags, so views never touch the filesystem during render.
+    func refreshItemExistence() {
+        let paths = items.map(\.path)
+        guard !paths.isEmpty else { return }
+        Task.detached(priority: .utility) { [weak self] in
+            let missing = Set(paths.filter { !FileManager.default.fileExists(atPath: $0) })
+            await self?.applyMissingPaths(missing)
+        }
+    }
+
+    private func applyMissingPaths(_ missing: Set<String>) {
+        var updated = items
+        var changed = false
+        for index in updated.indices {
+            let exists = !missing.contains(updated[index].path)
+            if updated[index].existsOnDisk != exists {
+                updated[index].existsOnDisk = exists
+                changed = true
+            }
+        }
+        guard changed else { return }
+        items = updated
+        summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
     }
 
     func scan(isScheduled: Bool = false) {
@@ -177,6 +284,11 @@ final class CleanupManager: ObservableObject {
         selectedIDs.removeAll()
         lastDeletionMessage = nil
         items.removeAll()
+        streamedPaths.removeAll()
+        pendingStreamedItems.removeAll()
+        pendingStreamedSummary = nil
+        streamFlushTask?.cancel()
+        streamFlushTask = nil
         summary = ScanSummary()
         scanProgress = ScanProgress()
         skippedScanPhases.removeAll()
@@ -203,13 +315,13 @@ final class CleanupManager: ObservableObject {
                 },
                 onSummary: { [weak self] summary in
                     guard let self, self.scanTask != nil else { return }
-                    self.summary.scannedFiles = summary.scannedFiles
-                    self.summary.skippedItems = summary.skippedItems
-                    self.summary.protectedLocationsBlocked = summary.protectedLocationsBlocked
+                    self.pendingStreamedSummary = summary
+                    self.scheduleStreamFlush()
                 }
             )
 
             guard !Task.isCancelled else {
+                self.flushStreamedItems()
                 self.summary.reclaimableBytes = self.items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
                 self.lastScannedAt = Date()
                 ScanResultsStore.save(items: self.items, summary: self.summary)
@@ -220,6 +332,9 @@ final class CleanupManager: ObservableObject {
                 return
             }
 
+            streamFlushTask?.cancel()
+            streamFlushTask = nil
+            pendingStreamedItems.removeAll()
             items = result.items
             summary = result.summary
             lastScannedAt = Date()
@@ -362,20 +477,66 @@ final class CleanupManager: ObservableObject {
         lastDeletionMessage = "Removed scan exclusion."
     }
 
+    func addCustomScanRoot(_ path: String) {
+        let normalized = normalizedPath(path)
+        guard !normalized.isEmpty, normalized != "/" else { return }
+        guard !options.customScanRoots.contains(normalized) else { return }
+        updateOptions { options in
+            options.customScanRoots.append(normalized)
+            options.customScanRoots.sort()
+        }
+        lastDeletionMessage = "Added \(normalized) to scanned folders."
+    }
+
+    func removeCustomScanRoot(_ path: String) {
+        updateOptions { options in
+            options.customScanRoots.removeAll { $0 == path }
+        }
+        lastDeletionMessage = "Removed scanned folder."
+    }
+
     func excludeParentFolder(of item: CleanupItem) {
         addExcludedPath(item.url.deletingLastPathComponent().path)
         markCustomScanMode()
     }
 
     private func appendStreamedItem(_ item: CleanupItem) {
-        guard !items.contains(where: { $0.path == item.path }) else { return }
+        guard streamedPaths.insert(item.path).inserted else { return }
         guard !isExcludedByPreferences(item.url) else { return }
-        items.append(item)
+        pendingStreamedItems.append(item)
+        // Publish in batches so a fast scan doesn't force a SwiftUI diff per file.
+        if pendingStreamedItems.count >= 200 {
+            flushStreamedItems()
+        } else {
+            scheduleStreamFlush()
+        }
+    }
+
+    private func scheduleStreamFlush() {
+        guard streamFlushTask == nil else { return }
+        streamFlushTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.streamFlushTask = nil
+            self.flushStreamedItems()
+        }
+    }
+
+    private func flushStreamedItems() {
+        if let pendingSummary = pendingStreamedSummary {
+            summary.scannedFiles = pendingSummary.scannedFiles
+            summary.skippedItems = pendingSummary.skippedItems
+            summary.protectedLocationsBlocked = pendingSummary.protectedLocationsBlocked
+            pendingStreamedSummary = nil
+        }
+        guard !pendingStreamedItems.isEmpty else { return }
+        items.append(contentsOf: pendingStreamedItems)
+        pendingStreamedItems.removeAll()
         if items.count > options.maxResults {
             items.sort { $0.size > $1.size }
             items.removeLast(items.count - options.maxResults)
         }
-        summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
+        summary.reclaimableBytes = items.lazy.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
     }
 
     func refreshFullDiskAccessStatus() {
@@ -395,6 +556,41 @@ final class CleanupManager: ObservableObject {
             return
         }
         diskSpace = DiskSpaceSnapshot(totalBytes: total.int64Value, freeBytes: free.int64Value)
+        refreshSnapshotCount()
+        refreshTrashSize()
+    }
+
+    private func refreshTrashSize() {
+        Task.detached(priority: .utility) { [weak self] in
+            let fileManager = FileManager.default
+            let trashURL = fileManager.urls(for: .trashDirectory, in: .userDomainMask).first
+                ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".Trash")
+            var total: Int64 = 0
+            let keys: [URLResourceKey] = [.isRegularFileKey, .fileAllocatedSizeKey, .totalFileAllocatedSizeKey]
+            if let enumerator = fileManager.enumerator(
+                at: trashURL,
+                includingPropertiesForKeys: keys,
+                options: [],
+                errorHandler: { _, _ in true }
+            ) {
+                while let url = enumerator.nextObject() as? URL {
+                    guard let values = try? url.resourceValues(forKeys: Set(keys)),
+                          values.isRegularFile == true else { continue }
+                    total += Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
+                }
+            }
+            let bytes = total
+            await MainActor.run { [weak self] in
+                self?.trashBytes = bytes
+            }
+        }
+    }
+
+    private func refreshSnapshotCount() {
+        Task { [weak self] in
+            let count = await SnapshotService.localSnapshotCount()
+            self?.localSnapshotCount = count
+        }
     }
 
     func toggleSelection(for item: CleanupItem) {
@@ -439,6 +635,12 @@ final class CleanupManager: ObservableObject {
         selectedIDs.removeAll()
     }
 
+    func exportFindings(_ findings: [CleanupItem], format: FindingsExportFormat) {
+        if let message = FindingsExporter.promptAndExport(items: findings, format: format) {
+            lastDeletionMessage = message
+        }
+    }
+
     func reveal(_ item: CleanupItem) {
         NSWorkspace.shared.activateFileViewerSelecting([item.url])
     }
@@ -448,7 +650,12 @@ final class CleanupManager: ObservableObject {
     }
 
     func removeMissingItems() {
-        items.removeAll { !$0.existsOnDisk }
+        var updated = items
+        for index in updated.indices {
+            updated[index].existsOnDisk = FileManager.default.fileExists(atPath: updated[index].path)
+        }
+        updated.removeAll { !$0.existsOnDisk }
+        items = updated
         selectedIDs = selectedIDs.intersection(Set(items.map(\.id)))
         summary.reclaimableBytes = items.filter(\.canMoveToTrash).reduce(0) { $0 + $1.size }
         ScanResultsStore.save(items: items, summary: summary)
@@ -456,7 +663,11 @@ final class CleanupManager: ObservableObject {
     }
 
     func moveSelectedToTrash() {
-        let targets = selectedItems.filter(\.canMoveToTrash)
+        moveToTrash(selectedItems.filter(\.canMoveToTrash))
+    }
+
+    func moveToTrash(_ requested: [CleanupItem]) {
+        let targets = requested.filter(\.canMoveToTrash)
         guard !targets.isEmpty else { return }
 
         var removed = 0
@@ -489,6 +700,11 @@ final class CleanupManager: ObservableObject {
             trashHistory.insert(contentsOf: newHistory, at: 0)
             trashHistory = Array(trashHistory.prefix(100))
             ScanResultsStore.saveTrashHistory(trashHistory)
+            registerUndo(actionName: "Move to Trash") { manager in
+                for entry in newHistory {
+                    manager.restoreFromTrash(entry)
+                }
+            }
         }
         lastDeletionMessage = failed == 0
             ? "Moved \(removed) item\(removed == 1 ? "" : "s") to Trash."
@@ -498,7 +714,11 @@ final class CleanupManager: ObservableObject {
     }
 
     func moveSelectedToStage() {
-        let targets = selectedItems.filter(\.canMoveToTrash)
+        moveToStage(selectedItems.filter(\.canMoveToTrash))
+    }
+
+    func moveToStage(_ requested: [CleanupItem]) {
+        let targets = requested.filter(\.canMoveToTrash)
         guard !targets.isEmpty else { return }
 
         var staged = 0
@@ -534,6 +754,11 @@ final class CleanupManager: ObservableObject {
         if !newEntries.isEmpty {
             stageEntries.insert(contentsOf: newEntries, at: 0)
             ScanResultsStore.saveStageEntries(stageEntries)
+            registerUndo(actionName: "Move to Stage") { manager in
+                for entry in newEntries {
+                    manager.restoreFromStage(entry)
+                }
+            }
         }
         lastDeletionMessage = failed == 0
             ? "Moved \(staged) item\(staged == 1 ? "" : "s") to Stage."
@@ -579,15 +804,19 @@ final class CleanupManager: ObservableObject {
             var resultingURL: NSURL?
             try FileManager.default.trashItem(at: entry.stagedURL, resultingItemURL: &resultingURL)
             if let resultingURL = resultingURL as URL? {
-                trashHistory.insert(TrashHistoryEntry(
+                let historyEntry = TrashHistoryEntry(
                     itemName: entry.itemName,
                     originalURL: entry.originalURL,
                     trashedURL: resultingURL,
                     size: entry.size,
                     movedAt: Date()
-                ), at: 0)
+                )
+                trashHistory.insert(historyEntry, at: 0)
                 trashHistory = Array(trashHistory.prefix(100))
                 ScanResultsStore.saveTrashHistory(trashHistory)
+                registerUndo(actionName: "Move to Trash") { manager in
+                    manager.restoreFromTrash(historyEntry)
+                }
             }
             removeStageContainerIfEmpty(for: entry)
             stageEntries.removeAll { $0.id == entry.id }
@@ -678,6 +907,16 @@ final class CleanupManager: ObservableObject {
         }
     }
 
+    /// Registers an undo operation on the key window's undo manager so that
+    /// Edit > Undo (Cmd+Z) reverses the last cleanup action.
+    private func registerUndo(actionName: String, handler: @escaping (CleanupManager) -> Void) {
+        guard let undoManager = NSApp.keyWindow?.undoManager ?? NSApp.mainWindow?.undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { manager in
+            handler(manager)
+        }
+        undoManager.setActionName(actionName)
+    }
+
     private func removeStageContainerIfEmpty(for entry: StageEntry) {
         let container = entry.stagedURL.deletingLastPathComponent()
         guard let contents = try? FileManager.default.contentsOfDirectory(atPath: container.path),
@@ -688,6 +927,25 @@ final class CleanupManager: ObservableObject {
     }
 
     private func savePreferences() {
+        // Debounced: Settings steppers/toggles fire didSet per tick; one write
+        // shortly after the last change is enough.
+        preferencesSaveTask?.cancel()
+        preferencesSaveTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.preferencesSaveTask = nil
+            self.writePreferencesNow()
+        }
+    }
+
+    private func flushPendingPreferenceSave() {
+        guard preferencesSaveTask != nil else { return }
+        preferencesSaveTask?.cancel()
+        preferencesSaveTask = nil
+        writePreferencesNow()
+    }
+
+    private func writePreferencesNow() {
         ScanResultsStore.savePreferences(CleanupPreferences(
             scanMode: scanMode,
             options: options,
@@ -696,7 +954,8 @@ final class CleanupManager: ObservableObject {
             showDirectTrashActions: showDirectTrashActions,
             scheduledScansEnabled: scheduledScansEnabled,
             scheduledScanIntervalDays: scheduledScanIntervalDays,
-            lastScheduledScanAt: lastScheduledScanAt
+            lastScheduledScanAt: lastScheduledScanAt,
+            showMenuBarExtra: showMenuBarExtra
         ))
     }
 

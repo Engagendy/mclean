@@ -5,7 +5,7 @@ import UserNotifications
 @main
 struct MCleanApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var manager = CleanupManager()
+    @StateObject private var manager = CleanupManager.shared
 
     init() {
         if MCleanCLI.shouldRun {
@@ -15,7 +15,7 @@ struct MCleanApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             ContentView()
                 .environmentObject(manager)
                 .frame(minWidth: 980, minHeight: 640)
@@ -136,6 +136,39 @@ struct SettingsView: View {
                 Toggle("System storage", isOn: boolOptionBinding(\.includeSystemStorage))
             }
 
+            Section("Additional Scan Folders") {
+                Text("Extra folders (including external volumes) scanned for large files and duplicates.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if manager.options.customScanRoots.isEmpty {
+                    Text("No additional folders.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(manager.options.customScanRoots, id: \.self) { path in
+                        HStack(spacing: 10) {
+                            Image(systemName: "folder.badge.plus")
+                                .foregroundStyle(.blue)
+                            Text(path)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Button(role: .destructive) {
+                                manager.removeCustomScanRoot(path)
+                            } label: {
+                                Image(systemName: "minus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove Folder")
+                        }
+                    }
+                }
+                Button {
+                    chooseCustomScanFolder()
+                } label: {
+                    Label("Add Folder…", systemImage: "plus")
+                }
+            }
+
             Section("Limits") {
                 Stepper("\(manager.options.largeFileThresholdMB) MB large-file threshold", value: intOptionBinding(\.largeFileThresholdMB), in: 100...5_000, step: 100)
                 Stepper("\(manager.options.oldFileAgeDays) days old-file age", value: intOptionBinding(\.oldFileAgeDays), in: 90...2_000, step: 30)
@@ -247,8 +280,27 @@ struct SettingsView: View {
                 }
                 .disabled(manager.isScanning)
             }
+
+            Section("Menu Bar") {
+                Toggle("Show menu bar icon", isOn: $manager.showMenuBarExtra)
+                Text("The menu bar icon shows disk status and lets you start scans without opening the main window.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+    }
+
+    private func chooseCustomScanFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Add Folder"
+        if panel.runModal() == .OK, let url = panel.url {
+            manager.addCustomScanRoot(url.path)
+            manager.markCustomScanMode()
+        }
     }
 
     private func chooseExclusionFolder() {
@@ -285,10 +337,15 @@ struct SettingsView: View {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    private var statusItemController: StatusItemController?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
         NSWindow.allowsAutomaticWindowTabbing = true
         MCleanWindowState.clearSavedLayout()
+        MainActor.assumeIsolated {
+            statusItemController = StatusItemController(manager: CleanupManager.shared)
+        }
 
         if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
            let icon = NSImage(contentsOf: iconURL) {

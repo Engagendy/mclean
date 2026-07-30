@@ -17,6 +17,7 @@ struct ScanOptions: Equatable, Codable {
     var oldFileAgeDays = 365
     var maxResults = 1_500
     var excludedPaths: [String] = []
+    var customScanRoots: [String] = []
 
     private enum CodingKeys: String, CodingKey {
         case includeCaches
@@ -34,6 +35,7 @@ struct ScanOptions: Equatable, Codable {
         case oldFileAgeDays
         case maxResults
         case excludedPaths
+        case customScanRoots
     }
 
     init() {}
@@ -55,6 +57,7 @@ struct ScanOptions: Equatable, Codable {
         oldFileAgeDays = try container.decodeIfPresent(Int.self, forKey: .oldFileAgeDays) ?? 365
         maxResults = try container.decodeIfPresent(Int.self, forKey: .maxResults) ?? 1_500
         excludedPaths = try container.decodeIfPresent([String].self, forKey: .excludedPaths) ?? []
+        customScanRoots = try container.decodeIfPresent([String].self, forKey: .customScanRoots) ?? []
     }
 }
 
@@ -90,6 +93,8 @@ actor FileScanner {
         var seenPaths = Set<String>()
         var summary = ScanSummary()
         let excludedPaths = normalizedExcludedPaths(options.excludedPaths)
+        let customRoots = options.customScanRoots
+            .map { URL(fileURLWithPath: NSString(string: $0).expandingTildeInPath).standardizedFileURL }
         let phases = enabledScanPhases(for: options)
         var skippedPhases: [ScanPhase] = []
 
@@ -214,6 +219,25 @@ actor FileScanner {
                 onItem: onItem,
                 onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
             )
+            await collectFileCandidates(
+                roots: [home.appendingPathComponent("Downloads")],
+                category: .downloads,
+                reason: "Old installer download",
+                risk: .low,
+                minSize: 5 * 1_024 * 1_024,
+                olderThanDays: 30,
+                fileExtensions: ["dmg", "pkg", "iso", "xip"],
+                items: &items,
+                seenPaths: &seenPaths,
+                summary: &summary,
+                excludedPaths: excludedPaths,
+                sourceName: "Installers",
+                sourceWarning: "Installers can usually be downloaded again. Keep any you need for offline reinstalls.",
+                phase: phase,
+                shouldStopPhase: shouldStopPhase,
+                onItem: onItem,
+                onSummary: summaryHandler(for: phase, phaseStartCount: phaseStartCount)
+            )
             await finishPhaseIfSkipped(phase)
         }
 
@@ -222,7 +246,7 @@ actor FileScanner {
             let phase = ScanPhase.largeFiles
             let phaseStartCount = await startPhase(phase)
             await collectFileCandidates(
-                roots: [home],
+                roots: [home] + customRoots,
                 category: .largeFiles,
                 reason: "Large file",
                 risk: .medium,
@@ -308,7 +332,7 @@ actor FileScanner {
                     home.appendingPathComponent("Downloads"),
                     home.appendingPathComponent("Documents"),
                     home.appendingPathComponent("Desktop")
-                ],
+                ] + customRoots,
                 minSize: 10 * 1_024 * 1_024,
                 items: &items,
                 seenPaths: &seenPaths,
@@ -625,6 +649,7 @@ actor FileScanner {
         risk: CleanupRisk,
         minSize: Int64,
         olderThanDays: Int?,
+        fileExtensions: Set<String>? = nil,
         items: inout [CleanupItem],
         seenPaths: inout Set<String>,
         summary: inout ScanSummary,
@@ -673,6 +698,7 @@ actor FileScanner {
 
                 if values.isDirectory == true { continue }
                 guard values.isRegularFile == true else { continue }
+                if let fileExtensions, !fileExtensions.contains(url.pathExtension.lowercased()) { continue }
 
                 summary.scannedFiles += 1
                 if summary.scannedFiles.isMultiple(of: 500) {
@@ -753,16 +779,36 @@ actor FileScanner {
             }
         }
 
+        // Tiered matching: files sharing a size are first compared by a 64 KB
+        // prefix hash; only prefix collisions pay for a full-file hash.
+        let prefixLimit: Int64 = 64 * 1_024
         for (size, urls) in filesBySize where urls.count > 1 {
             if await shouldStopPhase(phase) { return }
-            var filesByHash: [String: [URL]] = [:]
-            for url in urls {
-                if await shouldStopPhase(phase) { return }
-                guard let hash = sha256(for: url) else {
+            var filesByPrefix: [String: [URL]] = [:]
+            let prefixHashes = await hashBatch(urls, maxBytes: prefixLimit)
+            for (url, prefixHash) in zip(urls, prefixHashes) {
+                guard let prefixHash else {
                     summary.skippedItems += 1
                     continue
                 }
-                filesByHash[hash, default: []].append(url)
+                filesByPrefix[prefixHash, default: []].append(url)
+            }
+
+            var filesByHash: [String: [URL]] = [:]
+            for (prefixHash, candidates) in filesByPrefix where candidates.count > 1 {
+                if await shouldStopPhase(phase) { return }
+                if size <= prefixLimit {
+                    filesByHash[prefixHash] = candidates
+                    continue
+                }
+                let fullHashes = await hashBatch(candidates, maxBytes: nil)
+                for (url, hash) in zip(candidates, fullHashes) {
+                    guard let hash else {
+                        summary.skippedItems += 1
+                        continue
+                    }
+                    filesByHash[hash, default: []].append(url)
+                }
             }
 
             for (hash, matches) in filesByHash where matches.count > 1 {
@@ -1054,16 +1100,47 @@ actor FileScanner {
         }
     }
 
-    private func sha256(for url: URL) -> String? {
+    /// Hashes each URL concurrently (bounded), preserving input order.
+    private nonisolated func hashBatch(_ urls: [URL], maxBytes: Int64?) async -> [String?] {
+        await withTaskGroup(of: (Int, String?).self) { group in
+            var results = [String?](repeating: nil, count: urls.count)
+            let concurrency = min(4, urls.count)
+            var nextIndex = 0
+
+            func addTask(_ index: Int) {
+                group.addTask {
+                    (index, self.sha256(for: urls[index], maxBytes: maxBytes))
+                }
+            }
+
+            while nextIndex < concurrency {
+                addTask(nextIndex)
+                nextIndex += 1
+            }
+            for await (index, hash) in group {
+                results[index] = hash
+                if nextIndex < urls.count {
+                    addTask(nextIndex)
+                    nextIndex += 1
+                }
+            }
+            return results
+        }
+    }
+
+    private nonisolated func sha256(for url: URL, maxBytes: Int64? = nil) -> String? {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
 
         var hasher = SHA256()
-        while true {
+        var remaining = maxBytes ?? .max
+        while remaining > 0 {
             if Task.isCancelled { return nil }
-            let data = handle.readData(ofLength: 1_024 * 1_024)
+            let chunkSize = Int(min(Int64(1_024 * 1_024), remaining))
+            let data = handle.readData(ofLength: chunkSize)
             if data.isEmpty { break }
             hasher.update(data: data)
+            remaining -= Int64(data.count)
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
@@ -1169,6 +1246,7 @@ actor FileScanner {
             DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/Xcode/iOS DeviceSupport"), sourceName: "Xcode DeviceSupport", warning: nil),
             DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/CoreSimulator/Devices"), sourceName: "Simulator Devices", warning: "Simulator devices can contain app data used for development."),
             DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/CoreSimulator/Caches"), sourceName: "Simulator Caches", warning: nil),
+            DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/CoreSimulator/Profiles/Runtimes"), sourceName: "Simulator Runtimes", warning: "Old simulator runtimes can be several gigabytes each. Remove runtimes you no longer target; Xcode can reinstall them."),
             DeveloperDataRoot(url: home.appendingPathComponent("Library/Developer/XCTestDevices"), sourceName: "XCTest Devices", warning: nil),
             DeveloperDataRoot(url: home.appendingPathComponent("Library/Caches/com.apple.dt.Xcode"), sourceName: "Xcode Cache", warning: nil),
             DeveloperDataRoot(url: home.appendingPathComponent("Library/Caches/org.swift.swiftpm"), sourceName: "SwiftPM Cache", warning: nil),

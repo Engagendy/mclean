@@ -12,15 +12,19 @@ enum ScanResultsStore {
         return try? JSONDecoder().decode(StoredScanResults.self, from: data)
     }
 
+    // Serializes result writes off the main thread while preserving order.
+    private static let ioQueue = DispatchQueue(label: "com.engagendy.mclean.results-store", qos: .utility)
+
     static func save(items: [CleanupItem], summary: ScanSummary) {
         let payload = StoredScanResults(scannedAt: Date(), items: items, summary: summary)
-
-        do {
-            let url = try appSupportDirectory().appendingPathComponent(fileName)
-            let data = try JSONEncoder().encode(payload)
-            try data.write(to: url, options: [.atomic])
-        } catch {
-            return
+        ioQueue.async {
+            do {
+                let url = try appSupportDirectory().appendingPathComponent(fileName)
+                let data = try JSONEncoder().encode(payload)
+                try data.write(to: url, options: [.atomic])
+            } catch {
+                // Best-effort cache; the next scan rewrites it.
+            }
         }
     }
 
@@ -113,6 +117,7 @@ struct CleanupPreferences: Codable, Equatable {
     var scheduledScansEnabled = false
     var scheduledScanIntervalDays = 7
     var lastScheduledScanAt: Date?
+    var showMenuBarExtra = true
 
     private enum CodingKeys: String, CodingKey {
         case scanMode
@@ -123,6 +128,7 @@ struct CleanupPreferences: Codable, Equatable {
         case scheduledScansEnabled
         case scheduledScanIntervalDays
         case lastScheduledScanAt
+        case showMenuBarExtra
     }
 
     init() {}
@@ -135,7 +141,8 @@ struct CleanupPreferences: Codable, Equatable {
         showDirectTrashActions: Bool = true,
         scheduledScansEnabled: Bool = false,
         scheduledScanIntervalDays: Int = 7,
-        lastScheduledScanAt: Date? = nil
+        lastScheduledScanAt: Date? = nil,
+        showMenuBarExtra: Bool = true
     ) {
         self.scanMode = scanMode
         self.options = options
@@ -145,6 +152,7 @@ struct CleanupPreferences: Codable, Equatable {
         self.scheduledScansEnabled = scheduledScansEnabled
         self.scheduledScanIntervalDays = scheduledScanIntervalDays
         self.lastScheduledScanAt = lastScheduledScanAt
+        self.showMenuBarExtra = showMenuBarExtra
     }
 
     init(from decoder: Decoder) throws {
@@ -157,6 +165,7 @@ struct CleanupPreferences: Codable, Equatable {
         scheduledScansEnabled = try container.decodeIfPresent(Bool.self, forKey: .scheduledScansEnabled) ?? false
         scheduledScanIntervalDays = try container.decodeIfPresent(Int.self, forKey: .scheduledScanIntervalDays) ?? 7
         lastScheduledScanAt = try container.decodeIfPresent(Date.self, forKey: .lastScheduledScanAt)
+        showMenuBarExtra = try container.decodeIfPresent(Bool.self, forKey: .showMenuBarExtra) ?? true
     }
 }
 

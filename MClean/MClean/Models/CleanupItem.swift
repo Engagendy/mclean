@@ -139,7 +139,9 @@ struct CleanupItem: Identifiable, Hashable, Codable {
     var appLeftoverConfidence: AppLeftoverConfidence?
 
     var path: String { url.path }
-    var existsOnDisk: Bool { FileManager.default.fileExists(atPath: path) }
+    // Cached at scan/decode time and refreshed by CleanupManager; avoids a
+    // stat() syscall on every SwiftUI body evaluation.
+    var existsOnDisk: Bool = true
     var resolvedSourceKind: CleanupSourceKind {
         sourceKind ?? Self.defaultSourceKind(for: category)
     }
@@ -225,6 +227,7 @@ struct CleanupItem: Identifiable, Hashable, Codable {
         sourceName = try container.decodeIfPresent(String.self, forKey: .sourceName)
         sourceWarning = try container.decodeIfPresent(String.self, forKey: .sourceWarning)
         appLeftoverConfidence = try container.decodeIfPresent(AppLeftoverConfidence.self, forKey: .appLeftoverConfidence)
+        existsOnDisk = FileManager.default.fileExists(atPath: url.path)
     }
 
     static func defaultSourceKind(for category: CleanupCategory) -> CleanupSourceKind {

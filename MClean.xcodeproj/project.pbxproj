@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		454D32C9C2E84917AD99C9BC /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6AB1FA95CF8414491E0DE31 /* StatusItemController.swift */; };
+		D3DFB441FF204158934A2522 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 961280F235B24C6DB2C4B396 /* Localizable.xcstrings */; };
+		10EB84C466BE416C9112D87B /* SnapshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E32E5BBCB114DE0B007E806 /* SnapshotService.swift */; };
+		69A1E1880CC5475E8E1DFE94 /* AppUninstallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04AA6436E44740D49522F62F /* AppUninstallView.swift */; };
+		9ECE762691004B07A1CDFB38 /* AppUninstallInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7491E538FC546DD8CA7BEC2 /* AppUninstallInspector.swift */; };
+		5526CEDECA784A3EB30A5E4E /* FindingsExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49D8C4F9E94648FDA0FF3062 /* FindingsExporter.swift */; };
 		1007F1C5511EA7F2457923AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F29F8066081A3DBCFC5E274E /* Assets.xcassets */; };
 		1500606331EDCA8D7F55268F /* CleanupItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17CA6BA1CB19383218F17495 /* CleanupItem.swift */; };
 		3A4E8682258890D1ED80B8FB /* MoveToTrashPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0ABBFF393F5BD973E1C18C /* MoveToTrashPreviewView.swift */; };
@@ -27,6 +33,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A6AB1FA95CF8414491E0DE31 /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+		961280F235B24C6DB2C4B396 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		6E32E5BBCB114DE0B007E806 /* SnapshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotService.swift; sourceTree = "<group>"; };
+		04AA6436E44740D49522F62F /* AppUninstallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUninstallView.swift; sourceTree = "<group>"; };
+		A7491E538FC546DD8CA7BEC2 /* AppUninstallInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUninstallInspector.swift; sourceTree = "<group>"; };
+		49D8C4F9E94648FDA0FF3062 /* FindingsExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindingsExporter.swift; sourceTree = "<group>"; };
 		0CBF8FFB84A2B8A447F1550B /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		17CA6BA1CB19383218F17495 /* CleanupItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupItem.swift; sourceTree = "<group>"; };
 		255486FCD2078420B0CC2166 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -52,6 +64,7 @@
 			isa = PBXGroup;
 			children = (
 				F29F8066081A3DBCFC5E274E /* Assets.xcassets */,
+				961280F235B24C6DB2C4B396 /* Localizable.xcstrings */,
 				772576F0B6C8C9F51A019F6F /* App */,
 				686BCF82A45F95563360233E /* Models */,
 				A8358E24E229D6618E5E3D00 /* Services */,
@@ -80,6 +93,7 @@
 		772576F0B6C8C9F51A019F6F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				A6AB1FA95CF8414491E0DE31 /* StatusItemController.swift */,
 				255486FCD2078420B0CC2166 /* ContentView.swift */,
 				26E02991D85017272FF10231 /* MCleanApp.swift */,
 			);
@@ -97,6 +111,9 @@
 		A8358E24E229D6618E5E3D00 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				6E32E5BBCB114DE0B007E806 /* SnapshotService.swift */,
+				A7491E538FC546DD8CA7BEC2 /* AppUninstallInspector.swift */,
+				49D8C4F9E94648FDA0FF3062 /* FindingsExporter.swift */,
 				EFF22E8CBCE5CE4112626542 /* ByteCount.swift */,
 				DF2A2BE11D6C674B1AB2A430 /* CleanupManager.swift */,
 				DEE15FDC83D060A3ADCB5699 /* FileScanner.swift */,
@@ -110,6 +127,7 @@
 		C4F64E4222B45E8AD589BDBC /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				04AA6436E44740D49522F62F /* AppUninstallView.swift */,
 				D2ECA0A980B7D91942961672 /* FullDiskAccessBanner.swift */,
 				0CBF8FFB84A2B8A447F1550B /* HelpView.swift */,
 				8E0ABBFF393F5BD973E1C18C /* MoveToTrashPreviewView.swift */,
@@ -182,6 +200,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1007F1C5511EA7F2457923AA /* Assets.xcassets in Resources */,
+				D3DFB441FF204158934A2522 /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -192,6 +211,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				454D32C9C2E84917AD99C9BC /* StatusItemController.swift in Sources */,
+				10EB84C466BE416C9112D87B /* SnapshotService.swift in Sources */,
+				69A1E1880CC5475E8E1DFE94 /* AppUninstallView.swift in Sources */,
+				9ECE762691004B07A1CDFB38 /* AppUninstallInspector.swift in Sources */,
+				5526CEDECA784A3EB30A5E4E /* FindingsExporter.swift in Sources */,
 				55F34B9098F55B158B7F67C6 /* ByteCount.swift in Sources */,
 				1500606331EDCA8D7F55268F /* CleanupItem.swift in Sources */,
 				EDB8069D72882BFE1FCC4D5F /* CleanupManager.swift in Sources */,
@@ -218,15 +242,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGNING_ALLOWED = YES;
-				CODE_SIGN_ENTITLEMENTS = MClean/Resources/MCleanAppStore.entitlements;
+				CODE_SIGN_ENTITLEMENTS = MClean/Resources/MCleanDirect.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 111;
+				CURRENT_PROJECT_VERSION = 112;
 				DEVELOPMENT_TEAM = 7JM77223V5;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MClean/Resources/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = theMClean;
@@ -236,7 +261,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.engagendy.MClean;
 				PRODUCT_NAME = theMClean;
 				SDKROOT = macosx;
@@ -368,13 +393,14 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGNING_ALLOWED = YES;
 				CODE_SIGN_ENTITLEMENTS = MClean/Resources/MCleanAppStore.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 111;
+				CURRENT_PROJECT_VERSION = 112;
 				DEVELOPMENT_TEAM = 7JM77223V5;
 				ENABLE_APP_SANDBOX = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -386,7 +412,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.11;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.engagendy.MClean;
 				PRODUCT_NAME = theMClean;
 				SDKROOT = macosx;

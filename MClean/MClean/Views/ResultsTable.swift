@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import PDFKit
+import QuickLook
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -8,10 +9,10 @@ struct ResultsTable: View {
     @EnvironmentObject private var manager: CleanupManager
     let items: [CleanupItem]
     @State private var sortOrder = [KeyPathComparator(\CleanupItem.size, order: .reverse)]
-
-    private var sortedItems: [CleanupItem] {
-        items.sorted(using: sortOrder)
-    }
+    // Sorted once per data/order change; a computed sort would re-run on every
+    // body evaluation (e.g. each selection change).
+    @State private var sortedItems: [CleanupItem] = []
+    @State private var quickLookURL: URL?
 
     private var selectionBinding: Binding<Set<CleanupItem.ID>> {
         Binding(
@@ -57,6 +58,13 @@ struct ResultsTable: View {
                     }
                 }
                 .contextMenu {
+                    Button {
+                        quickLookURL = item.url
+                    } label: {
+                        Label("Quick Look", systemImage: "eye")
+                    }
+                    .disabled(!item.existsOnDisk)
+
                     Button {
                         manager.reveal(item)
                     } label: {
@@ -155,6 +163,24 @@ struct ResultsTable: View {
                 }
             }
             .width(74)
+        }
+        .onKeyPress(.space) {
+            guard let id = manager.selectedIDs.first,
+                  let item = sortedItems.first(where: { $0.id == id && $0.existsOnDisk }) else {
+                return .ignored
+            }
+            quickLookURL = item.url
+            return .handled
+        }
+        .quickLookPreview($quickLookURL, in: sortedItems.filter(\.existsOnDisk).map(\.url))
+        .onAppear {
+            sortedItems = items.sorted(using: sortOrder)
+        }
+        .onChange(of: items) { _, newItems in
+            sortedItems = newItems.sorted(using: sortOrder)
+        }
+        .onChange(of: sortOrder) { _, newOrder in
+            sortedItems = items.sorted(using: newOrder)
         }
         .opacity(items.contains(where: { !$0.existsOnDisk }) ? 0.98 : 1)
         .overlay {

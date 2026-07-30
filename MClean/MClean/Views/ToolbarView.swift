@@ -10,6 +10,7 @@ struct ToolbarView: View {
     @State private var showingStage = false
     @State private var showingDuplicateReview = false
     @State private var showingAppLeftovers = false
+    @State private var showingAppUninstall = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -86,6 +87,18 @@ struct ToolbarView: View {
                 }
                 .buttonStyle(.mcleanAction)
 
+                Menu {
+                    ForEach(FindingsExportFormat.allCases) { format in
+                        Button("Export Visible as \(format.rawValue)…") {
+                            manager.exportFindings(visibleItems, format: format)
+                        }
+                    }
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+                .disabled(visibleItems.isEmpty || isScanning)
+                .buttonStyle(.mcleanAction)
+
                 Button {
                     showingDuplicateReview = true
                 } label: {
@@ -100,6 +113,13 @@ struct ToolbarView: View {
                     Label("Leftovers", systemImage: "app.badge")
                 }
                 .disabled(manager.appLeftoverGroups.isEmpty || isScanning)
+                .buttonStyle(.mcleanAction)
+
+                Button {
+                    showingAppUninstall = true
+                } label: {
+                    Label("Uninstall App", systemImage: "app.dashed")
+                }
                 .buttonStyle(.mcleanAction)
 
                 Button {
@@ -153,6 +173,10 @@ struct ToolbarView: View {
         }
         .sheet(isPresented: $showingAppLeftovers) {
             AppLeftoverReviewView(isPresented: $showingAppLeftovers, showingDeleteAlert: $showingDeleteAlert)
+                .environmentObject(manager)
+        }
+        .sheet(isPresented: $showingAppUninstall) {
+            AppUninstallView(isPresented: $showingAppUninstall)
                 .environmentObject(manager)
         }
     }
